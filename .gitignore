@@ -1,0 +1,20 @@
+# Dependance externe : clonee par scripts/setup_openfold.sh
+/openfold-3-mlx/
+
+# Donnees locales (base SQLite, resultats de predictions)
+/var/
+
+# Python
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+*.egg-info/
+
+# Environnement
+.env
+
+# OS / IDE
+.DS_Store
+.vscode/
+.idea/

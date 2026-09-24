@@ -1,0 +1,617 @@
+{% extends "predictor/base.html" %}
+{% load static %}
+
+{% block heading %}Comprendre le modèle{% endblock %}
+
+{% block extra_head %}
+<link rel="stylesheet" href="{% static 'predictor/katex/katex.min.css' %}">
+<style>
+.intro {
+  max-width: 68ch;
+  font-size: 0.92rem;
+  line-height: 1.65;
+  color: var(--ink-soft);
+}
+.intro strong { color: var(--ink); }
+
+.legend-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem 1.2rem;
+  padding: 1rem 1.25rem;
+}
+.legend-item { display: flex; align-items: center; gap: 0.5rem; font-size: 0.82rem; color: var(--ink-soft); }
+.legend-swatch { width: 0.7rem; height: 0.7rem; border-radius: 3px; flex-shrink: 0; }
+.legend-item .not-analyzed .legend-swatch { background: var(--ink-faint); opacity: 0.35; }
+
+.diagram-wrap { overflow-x: auto; padding: 1.5rem 1.25rem 1rem; }
+.diagram-wrap svg { display: block; margin: 0 auto; font-family: var(--sans); }
+.diagram-caption {
+  padding: 0 1.25rem 1.25rem;
+  font-size: 0.78rem;
+  color: var(--ink-faint);
+  line-height: 1.6;
+}
+
+.stage-title { fill: var(--ink); font-size: 13px; font-weight: 600; }
+.stage-sub { fill: var(--ink-faint); font-size: 10.5px; font-family: var(--mono); }
+.stage-box { fill: var(--bg-panel); stroke: var(--line); stroke-width: 1.5; }
+.stage-box.analyzed { stroke-width: 2; }
+.flow-arrow { stroke: var(--ink-faint); stroke-width: 1.5; fill: none; marker-end: url(#arrowhead); }
+.flow-label { fill: var(--ink-faint); font-size: 9.5px; font-family: var(--mono); }
+.badge-text { font-size: 9px; font-weight: 700; font-family: var(--mono); }
+.repeat-tag { fill: var(--ink-faint); font-size: 9.5px; font-family: var(--mono); font-style: italic; }
+
+.section-divider {
+  border: none;
+  border-top: 1px solid var(--line);
+  margin: 0;
+}
+
+.spec-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(190px, 1fr));
+  gap: 1px;
+  background: var(--line);
+  border-top: 1px solid var(--line);
+}
+.spec-cell { background: var(--bg-panel); padding: 0.85rem 1.1rem; display: flex; flex-direction: column; gap: 0.3rem; }
+.spec-cell .label { font-size: 0.66rem; text-transform: uppercase; letter-spacing: 0.06em; color: var(--ink-faint); }
+.spec-cell .value { font-family: var(--mono); font-size: 0.95rem; color: var(--ink); font-weight: 600; }
+.spec-cell .value .analyzed-dot {
+  display: inline-block;
+  width: 0.4rem; height: 0.4rem;
+  border-radius: 50%;
+  margin-left: 0.4rem;
+}
+
+.family-cards {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+  gap: 1px;
+  background: var(--line);
+  border-top: 1px solid var(--line);
+}
+.family-card { background: var(--bg-panel); padding: 1.1rem 1.25rem; display: flex; flex-direction: column; gap: 0.5rem; }
+.family-card .head { display: flex; align-items: center; gap: 0.55rem; }
+.family-card .dot { width: 0.65rem; height: 0.65rem; border-radius: 3px; flex-shrink: 0; }
+.family-card h3 { margin: 0; font-size: 0.92rem; font-weight: 650; }
+.family-card p { margin: 0; font-size: 0.82rem; color: var(--ink-soft); line-height: 1.55; }
+.family-card .dims { font-family: var(--mono); font-size: 0.72rem; color: var(--ink-faint); }
+
+.cta-row { padding: 1.1rem 1.25rem; }
+
+/* Blocs cliquables du schéma */
+.stage-box, .clickable-group { cursor: pointer; }
+.stage-box:hover { filter: brightness(1.04); }
+@media (prefers-color-scheme: dark) { .stage-box:hover { filter: brightness(1.25); } }
+:root[data-theme="dark"] .stage-box:hover { filter: brightness(1.25); }
+:root[data-theme="light"] .stage-box:hover { filter: brightness(1.04); }
+.clickable-group:hover .stage-box { stroke-width: 2.5; }
+.click-hint { fill: var(--ink-faint); font-size: 8.5px; font-family: var(--mono); opacity: 0; transition: opacity 0.15s ease; }
+.clickable-group:hover .click-hint { opacity: 1; }
+
+/* Modal de détail */
+.detail-overlay {
+  display: none;
+  position: fixed;
+  inset: 0;
+  background: color-mix(in srgb, black 45%, transparent);
+  z-index: 100;
+  padding: 4vh 1.5rem;
+  overflow-y: auto;
+}
+.detail-overlay.open { display: flex; justify-content: center; align-items: flex-start; }
+.detail-panel {
+  background: var(--bg-panel);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  max-width: 760px;
+  width: 100%;
+  max-height: 92vh;
+  overflow-y: auto;
+  box-shadow: 0 20px 60px color-mix(in srgb, black 25%, transparent);
+}
+.detail-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 1rem;
+  padding: 1.4rem 1.6rem 1.1rem;
+  border-bottom: 1px solid var(--line);
+  position: sticky;
+  top: 0;
+  background: var(--bg-panel);
+}
+.detail-head h2 { margin: 0 0 0.3rem; font-size: 1.15rem; }
+.detail-head .sub { font-size: 0.8rem; color: var(--ink-faint); font-family: var(--mono); }
+.detail-close {
+  border: 1px solid var(--line);
+  background: var(--bg);
+  color: var(--ink-soft);
+  width: 2rem; height: 2rem;
+  border-radius: 7px;
+  cursor: pointer;
+  font-size: 1rem;
+  line-height: 1;
+  flex-shrink: 0;
+}
+.detail-close:hover { border-color: var(--accent); color: var(--accent); }
+.detail-body { padding: 1.4rem 1.6rem 1.8rem; display: flex; flex-direction: column; gap: 1.2rem; }
+.detail-body p { font-size: 0.88rem; line-height: 1.65; color: var(--ink-soft); margin: 0; }
+.detail-body p strong { color: var(--ink); }
+.detail-body h4 { font-size: 0.78rem; text-transform: uppercase; letter-spacing: 0.05em; color: var(--ink-faint); margin: 0 0 0.2rem; }
+.formula-block {
+  background: var(--bg);
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  padding: 1rem 1.2rem;
+  overflow-x: auto;
+}
+.formula-block .katex-display { margin: 0; }
+.formula-note { font-size: 0.78rem; color: var(--ink-faint); line-height: 1.5; }
+.dims-table { width: 100%; border-collapse: collapse; font-size: 0.82rem; }
+.dims-table td { padding: 0.35rem 0; border-bottom: 1px solid var(--line); }
+.dims-table td:first-child { color: var(--ink-faint); font-family: var(--mono); width: 40%; }
+.dims-table td:last-child { color: var(--ink); font-family: var(--mono); }
+.dims-table tr:last-child td { border-bottom: none; }
+.source-ref {
+  font-family: var(--mono);
+  font-size: 0.72rem;
+  color: var(--ink-faint);
+  background: var(--accent-soft);
+  color: var(--accent);
+  padding: 0.15rem 0.5rem;
+  border-radius: 5px;
+  display: inline-block;
+}
+</style>
+{% endblock %}
+
+{% block content %}
+<p class="intro">
+  OpenFold3 prédit la structure 3D d'une protéine à partir de sa séquence en trois grandes étapes :
+  il construit d'abord des représentations riches à partir de l'alignement de séquences homologues (MSA) et de structures voisines connues (templates),
+  affine ensuite ces représentations dans un long tronc de raisonnement appelé le <strong>Pairformer</strong>,
+  puis génère les coordonnées atomiques par <strong>diffusion</strong> — en partant d'un nuage de points bruité qu'il débruite progressivement jusqu'à obtenir la structure finale.
+  L'explorateur d'attention de cet outil regarde à l'intérieur de deux de ces étapes pour voir <strong>quels résidus le modèle relie entre eux</strong> et à quel point ce lien est confiant.
+</p>
+
+<section class="panel">
+  <div class="panel-head">
+    <div>
+      <h2>Vue d'ensemble du pipeline</h2>
+      <span class="sub">de la séquence à la structure 3D</span>
+    </div>
+  </div>
+  <div class="legend-row">
+    <span class="legend-item"><span class="legend-swatch" style="background: var(--accent);"></span>Self-attention Pairformer</span>
+    <span class="legend-item"><span class="legend-swatch" style="background: var(--c-high);"></span>Triangle attention (starting)</span>
+    <span class="legend-item"><span class="legend-swatch" style="background: var(--c-low);"></span>Triangle attention (ending)</span>
+    <span class="legend-item"><span class="legend-swatch" style="background: var(--c-vlow);"></span>Diffusion Transformer (token)</span>
+    <span class="legend-item not-analyzed"><span class="legend-swatch"></span>Non analysé par l'outil</span>
+  </div>
+  <div class="diagram-wrap">
+    <svg viewBox="0 0 1180 320" width="1180" height="320" role="img" aria-label="Schéma du pipeline OpenFold3">
+      <defs>
+        <marker id="arrowhead" markerWidth="8" markerHeight="8" refX="7" refY="4" orient="auto">
+          <path d="M0,0 L8,4 L0,8 Z" fill="var(--ink-faint)"></path>
+        </marker>
+      </defs>
+
+      <!-- Séquence -->
+      <rect x="10" y="120" width="110" height="70" rx="8" class="stage-box"></rect>
+      <text x="65" y="150" text-anchor="middle" class="stage-title">Séquence</text>
+      <text x="65" y="167" text-anchor="middle" class="stage-sub">acides aminés</text>
+
+      <path d="M120,155 H165" class="flow-arrow"></path>
+
+      <!-- MSA + Templates -->
+      <rect x="165" y="90" width="130" height="60" rx="8" class="stage-box"></rect>
+      <text x="230" y="115" text-anchor="middle" class="stage-title" style="font-size:12px">MSA</text>
+      <text x="230" y="132" text-anchor="middle" class="stage-sub">ColabFold server</text>
+
+      <rect x="165" y="170" width="130" height="60" rx="8" class="stage-box"></rect>
+      <text x="230" y="195" text-anchor="middle" class="stage-title" style="font-size:12px">Templates</text>
+      <text x="230" y="212" text-anchor="middle" class="stage-sub">structures voisines</text>
+
+      <path d="M295,120 L340,150" class="flow-arrow"></path>
+      <path d="M295,200 L340,160" class="flow-arrow"></path>
+
+      <!-- Embedders -->
+      <rect x="340" y="120" width="120" height="70" rx="8" class="stage-box"></rect>
+      <text x="400" y="148" text-anchor="middle" class="stage-title" style="font-size:12px">Input +</text>
+      <text x="400" y="163" text-anchor="middle" class="stage-title" style="font-size:12px">MSA Embedders</text>
+      <text x="400" y="180" text-anchor="middle" class="stage-sub">s, z init</text>
+
+      <path d="M460,155 H505" class="flow-arrow"></path>
+      <text x="482" y="147" text-anchor="middle" class="flow-label">s, z</text>
+
+      <!-- Pairformer -->
+      <g class="clickable-group" data-detail="pairformer-self-attn">
+        <rect x="505" y="95" width="220" height="145" rx="10" class="stage-box analyzed" style="stroke: var(--accent);"></rect>
+        <text x="615" y="122" text-anchor="middle" class="stage-title" style="font-size:14px">Pairformer</text>
+        <text x="615" y="139" text-anchor="middle" class="stage-sub">48 blocs</text>
+        <rect x="522" y="150" width="186" height="26" rx="5" style="fill: color-mix(in srgb, var(--accent) 16%, transparent); stroke: var(--accent); stroke-width: 1;"></rect>
+        <text x="615" y="167" text-anchor="middle" class="badge-text" style="fill: var(--accent);">SELF-ATTENTION (single)</text>
+      </g>
+      <g class="clickable-group" data-detail="triangle-start">
+        <rect x="522" y="182" width="90" height="24" rx="5" style="fill: color-mix(in srgb, var(--c-high) 20%, transparent); stroke: var(--c-high); stroke-width: 1;"></rect>
+        <text x="567" y="198" text-anchor="middle" class="badge-text" style="fill: color-mix(in srgb, var(--c-high) 65%, var(--ink));">TRIANGLE start</text>
+      </g>
+      <g class="clickable-group" data-detail="triangle-end">
+        <rect x="618" y="182" width="90" height="24" rx="5" style="fill: color-mix(in srgb, var(--c-low) 20%, transparent); stroke: var(--c-low); stroke-width: 1;"></rect>
+        <text x="663" y="198" text-anchor="middle" class="badge-text" style="fill: color-mix(in srgb, var(--c-low) 55%, var(--ink));">TRIANGLE end</text>
+      </g>
+      <text x="615" y="222" text-anchor="middle" class="repeat-tag">× 48, résiduel</text>
+      <text x="615" y="234" text-anchor="middle" class="click-hint">cliquer un badge pour les formules</text>
+
+      <path d="M725,167 H770" class="flow-arrow"></path>
+      <text x="748" y="159" text-anchor="middle" class="flow-label">s, z</text>
+
+      <!-- Diffusion Module -->
+      <g class="clickable-group" data-detail="diffusion-schedule">
+        <rect x="770" y="95" width="200" height="145" rx="10" class="stage-box analyzed" style="stroke: var(--c-vlow);"></rect>
+        <text x="870" y="122" text-anchor="middle" class="stage-title" style="font-size:14px">Diffusion Module</text>
+        <text x="870" y="139" text-anchor="middle" class="stage-sub">rollout ~200 pas</text>
+        <rect x="787" y="150" width="166" height="26" rx="5" style="fill: color-mix(in srgb, var(--c-vlow) 16%, transparent); stroke: var(--c-vlow); stroke-width: 1;"></rect>
+        <text x="870" y="167" text-anchor="middle" class="badge-text" style="fill: color-mix(in srgb, var(--c-vlow) 60%, var(--ink));">DIFFUSION TRANSFORMER</text>
+      </g>
+
+      <text x="870" y="192" text-anchor="middle" class="stage-sub" style="font-size:9.5px;">+ atom attention encoder/decoder</text>
+      <text x="870" y="207" text-anchor="middle" class="repeat-tag">non analysé (fenêtré, par atome)</text>
+      <text x="870" y="222" text-anchor="middle" class="repeat-tag">24 blocs token-level, analysés</text>
+      <text x="870" y="234" text-anchor="middle" class="click-hint">cliquer pour le schedule de bruit</text>
+
+      <path d="M970,167 H1015" class="flow-arrow"></path>
+
+      <!-- Structure -->
+      <g class="clickable-group" data-detail="plddt">
+        <rect x="1015" y="120" width="155" height="70" rx="8" class="stage-box"></rect>
+        <text x="1092" y="148" text-anchor="middle" class="stage-title" style="font-size:12px">Structure 3D</text>
+        <text x="1092" y="164" text-anchor="middle" class="stage-sub">coordonnées + pLDDT</text>
+        <text x="1092" y="179" text-anchor="middle" class="stage-sub">8 échantillons</text>
+      </g>
+    </svg>
+  </div>
+  <p class="diagram-caption">
+    s = représentation « single » (par résidu), z = représentation « pair » (par paire de résidus). Les cadres colorés indiquent les mécanismes que l'explorateur d'attention peut extraire ; le module de diffusion contient aussi de l'attention atome-par-atome (fenêtrée) qui n'est pas analysée ici, car sa forme n'est pas une simple carte résidu-à-résidu.
+  </p>
+  <div class="spec-grid">
+    <div class="spec-cell"><span class="label">Pairformer</span><span class="value">48 blocs</span></div>
+    <div class="spec-cell"><span class="label">Têtes self-attention</span><span class="value">16</span></div>
+    <div class="spec-cell"><span class="label">Têtes triangle attention</span><span class="value">4</span></div>
+    <div class="spec-cell"><span class="label">Diffusion Transformer</span><span class="value">24 blocs</span></div>
+    <div class="spec-cell"><span class="label">Représentation single (s)</span><span class="value">384 dim</span></div>
+    <div class="spec-cell"><span class="label">Représentation pair (z)</span><span class="value">128 dim</span></div>
+  </div>
+</section>
+
+<section class="panel">
+  <div class="panel-head">
+    <div>
+      <h2>À l'intérieur d'un bloc Pairformer</h2>
+      <span class="sub">le même bloc est répété 48 fois, avec des poids différents à chaque fois</span>
+    </div>
+  </div>
+  <div class="diagram-wrap">
+    <svg viewBox="0 0 900 460" width="900" height="460" role="img" aria-label="Schéma détaillé d'un bloc Pairformer">
+      <defs>
+        <marker id="arrowhead2" markerWidth="8" markerHeight="8" refX="7" refY="4" orient="auto">
+          <path d="M0,0 L8,4 L0,8 Z" fill="var(--ink-faint)"></path>
+        </marker>
+      </defs>
+
+      <!-- input s, z -->
+      <text x="90" y="30" class="stage-sub" style="font-size:11px;">s (single, entrant)</text>
+      <text x="640" y="30" class="stage-sub" style="font-size:11px;">z (pair, entrant)</text>
+
+      <path d="M120,40 V80" class="flow-arrow" marker-end="url(#arrowhead2)"></path>
+      <path d="M670,40 V80" class="flow-arrow" marker-end="url(#arrowhead2)"></path>
+
+      <!-- z column: triangle mult + triangle attention -->
+      <g class="clickable-group" data-detail="triangle-mult">
+        <rect x="480" y="80" width="380" height="90" rx="8" class="stage-box"></rect>
+        <text x="670" y="105" text-anchor="middle" class="stage-title" style="font-size:12px">Triangle multiplication</text>
+        <text x="670" y="122" text-anchor="middle" class="stage-sub">(outgoing / incoming)</text>
+        <text x="670" y="140" text-anchor="middle" class="stage-sub" style="font-size:9.5px;">met à jour z à partir de z lui-même</text>
+        <text x="670" y="156" text-anchor="middle" class="repeat-tag">non basé sur l'attention — cliquer pour la formule</text>
+      </g>
+
+      <path d="M670,170 V195" class="flow-arrow" marker-end="url(#arrowhead2)"></path>
+
+      <g class="clickable-group" data-detail="triangle-start">
+        <rect x="480" y="195" width="180" height="95" rx="8" class="stage-box analyzed" style="stroke: var(--c-high);"></rect>
+        <text x="570" y="220" text-anchor="middle" class="stage-title" style="font-size:12px">Triangle attention</text>
+        <text x="570" y="236" text-anchor="middle" class="stage-sub">starting node</text>
+        <rect x="495" y="248" width="150" height="24" rx="5" style="fill: color-mix(in srgb, var(--c-high) 20%, transparent); stroke: var(--c-high); stroke-width: 1;"></rect>
+        <text x="570" y="264" text-anchor="middle" class="badge-text" style="fill: color-mix(in srgb, var(--c-high) 65%, var(--ink));">ANALYSÉ</text>
+      </g>
+
+      <g class="clickable-group" data-detail="triangle-end">
+        <rect x="680" y="195" width="180" height="95" rx="8" class="stage-box analyzed" style="stroke: var(--c-low);"></rect>
+        <text x="770" y="220" text-anchor="middle" class="stage-title" style="font-size:12px">Triangle attention</text>
+        <text x="770" y="236" text-anchor="middle" class="stage-sub">ending node</text>
+        <rect x="695" y="248" width="150" height="24" rx="5" style="fill: color-mix(in srgb, var(--c-low) 20%, transparent); stroke: var(--c-low); stroke-width: 1;"></rect>
+        <text x="770" y="264" text-anchor="middle" class="badge-text" style="fill: color-mix(in srgb, var(--c-low) 55%, var(--ink));">ANALYSÉ</text>
+      </g>
+
+      <path d="M660,242 H680" class="flow-arrow" marker-end="url(#arrowhead2)"></path>
+
+      <path d="M770,290 V320" class="flow-arrow" marker-end="url(#arrowhead2)"></path>
+      <path d="M570,290 V320 H680" class="flow-arrow" marker-end="url(#arrowhead2)"></path>
+
+      <rect x="580" y="320" width="180" height="55" rx="8" class="stage-box"></rect>
+      <text x="670" y="343" text-anchor="middle" class="stage-title" style="font-size:12px">Transition</text>
+      <text x="670" y="359" text-anchor="middle" class="stage-sub">MLP par résidu</text>
+
+      <text x="670" y="410" text-anchor="middle" class="stage-title" style="font-size:13px">z sortant &rarr;</text>
+
+      <!-- bias arrow from z to s attention -->
+      <path d="M480,140 C 350,140 320,220 280,220" class="flow-arrow" style="stroke-dasharray:4 3;" marker-end="url(#arrowhead2)"></path>
+      <text x="380" y="185" text-anchor="middle" class="flow-label">z sert de biais</text>
+
+      <!-- s column: self attention with pair bias -->
+      <g class="clickable-group" data-detail="pairformer-self-attn">
+        <rect x="30" y="195" width="280" height="95" rx="8" class="stage-box analyzed" style="stroke: var(--accent);"></rect>
+        <text x="170" y="220" text-anchor="middle" class="stage-title" style="font-size:12px">Self-attention</text>
+        <text x="170" y="236" text-anchor="middle" class="stage-sub">avec biais issu de z (16 têtes)</text>
+        <rect x="45" y="248" width="250" height="24" rx="5" style="fill: color-mix(in srgb, var(--accent) 16%, transparent); stroke: var(--accent); stroke-width: 1;"></rect>
+        <text x="170" y="264" text-anchor="middle" class="badge-text" style="fill: var(--accent);">ANALYSÉ — c'est la carte la plus proche d'ESM</text>
+      </g>
+
+      <path d="M170,290 V320" class="flow-arrow" marker-end="url(#arrowhead2)"></path>
+
+      <rect x="80" y="320" width="180" height="55" rx="8" class="stage-box"></rect>
+      <text x="170" y="343" text-anchor="middle" class="stage-title" style="font-size:12px">Transition</text>
+      <text x="170" y="359" text-anchor="middle" class="stage-sub">MLP par résidu</text>
+
+      <text x="170" y="410" text-anchor="middle" class="stage-title" style="font-size:13px">s sortant &rarr;</text>
+    </svg>
+  </div>
+  <p class="diagram-caption">
+    Le flèche pointillée montre que la représentation par paires <strong>z</strong> agit comme un biais qui oriente la self-attention sur <strong>s</strong> — c'est ce qui permet au Pairformer de faire correspondre le raisonnement « quels résidus interagissent » (z) avec « comment mettre à jour chaque résidu » (s). La triangle multiplication n'est pas de l'attention (pas de softmax sur des poids), donc elle n'est pas analysée par cet outil.
+  </p>
+</section>
+
+<section class="panel">
+  <div class="panel-head">
+    <div>
+      <h2>Les 4 cartes disponibles dans l'explorateur</h2>
+      <span class="sub">ce que chacune montre, et comment la lire</span>
+    </div>
+  </div>
+  <div class="family-cards">
+    <div class="family-card clickable-group" data-detail="pairformer-self-attn">
+      <div class="head"><span class="dot" style="background: var(--accent);"></span><h3>Self-attention Pairformer</h3></div>
+      <p>Pour chaque résidu, quels autres résidus il « regarde » directement pour mettre à jour sa propre représentation. La plus proche, conceptuellement, d'une carte d'attention de langage classique (type ESM).</p>
+      <span class="dims">48 blocs · 16 têtes · matrice N×N</span>
+    </div>
+    <div class="family-card clickable-group" data-detail="triangle-start">
+      <div class="head"><span class="dot" style="background: var(--c-high);"></span><h3>Triangle attention (starting)</h3></div>
+      <p>Pour chaque paire de résidus (i, j), quelle influence un troisième résidu k exerce sur cette paire en partant de i. Capture des contraintes géométriques à trois corps, propres à AlphaFold3.</p>
+      <span class="dims">48 blocs · 4 têtes · cube N×N×N, moyenné en heatmap</span>
+    </div>
+    <div class="family-card clickable-group" data-detail="triangle-end">
+      <div class="head"><span class="dot" style="background: var(--c-low);"></span><h3>Triangle attention (ending)</h3></div>
+      <p>Le même mécanisme que « starting », mais en partant de j plutôt que de i — les deux directions se complètent pour contraindre la géométrie du triangle (i, j, k).</p>
+      <span class="dims">48 blocs · 4 têtes · cube N×N×N, moyenné en heatmap</span>
+    </div>
+    <div class="family-card clickable-group" data-detail="diffusion-schedule">
+      <div class="head"><span class="dot" style="background: var(--c-vlow);"></span><h3>Diffusion Transformer (token)</h3></div>
+      <p>Pendant la génération des coordonnées 3D, quels résidus s'influencent au niveau du token — capturé à un pas de bruit représentatif au milieu du rollout de débruitage.</p>
+      <span class="dims">24 blocs · 16 têtes · matrice N×N, un pas sur ~200</span>
+    </div>
+  </div>
+</section>
+
+<section class="panel">
+  <div class="panel-head">
+    <div>
+      <h2>Autres mécanismes du modèle</h2>
+      <span class="sub">non capturés par l'explorateur, mais utiles pour comprendre le tout</span>
+    </div>
+  </div>
+  <div class="family-cards">
+    <div class="family-card clickable-group" data-detail="msa-averaging">
+      <div class="head"><span class="dot" style="background: var(--ink-faint);"></span><h3>MSA Pair-Weighted Averaging</h3></div>
+      <p>Le module MSA d'AlphaFold3 n'utilise pas de self-attention classique entre séquences homologues — il moyenne les séquences avec des poids qui viennent directement de z, sans produit Query·Key.</p>
+      <span class="dims">4 blocs · pas de QK-attention</span>
+    </div>
+    <div class="family-card clickable-group" data-detail="adaln">
+      <div class="head"><span class="dot" style="background: var(--ink-faint);"></span><h3>AdaLN — conditionnement du diffusion transformer</h3></div>
+      <p>Dans le module de diffusion, la normalisation de chaque token est modulée par la représentation single s, pour que le débruitage tienne compte du contexte de chaque résidu.</p>
+      <span class="dims">AlphaFold3 Algorithme 26</span>
+    </div>
+    <div class="family-card clickable-group" data-detail="plddt">
+      <div class="head"><span class="dot" style="background: var(--ink-faint);"></span><h3>Calcul du pLDDT</h3></div>
+      <p>Le score de confiance affiché sur chaque structure n'est pas une simple probabilité — c'est une espérance pondérée sur des bins de confiance, calculée par une tête dédiée.</p>
+      <span class="dims">50 bins, [0,1]</span>
+    </div>
+  </div>
+  <div class="cta-row">
+    <a href="{% url 'index' %}" class="btn">Lancer une prédiction</a>
+  </div>
+</section>
+
+<div class="detail-overlay" id="detail-overlay">
+  <div class="detail-panel">
+    <div class="detail-head">
+      <div>
+        <h2 id="detail-title"></h2>
+        <span class="sub" id="detail-source"></span>
+      </div>
+      <button type="button" class="detail-close" id="detail-close" aria-label="Fermer">&times;</button>
+    </div>
+    <div class="detail-body" id="detail-body"></div>
+  </div>
+</div>
+{% endblock %}
+
+{% block extra_body %}
+<script src="{% static 'predictor/katex/katex.min.js' %}"></script>
+<script>
+(function() {
+  const DETAILS = {
+    "pairformer-self-attn": {
+      title: "Self-attention avec biais de paires",
+      source: "layers/attention_pair_bias.py:121-227 · primitives/attention.py:94-135",
+      html: `
+        <p>C'est la couche qui met à jour la représentation <strong>single</strong> (par résidu) en laissant chaque résidu « regarder » tous les autres. Elle fonctionne comme une self-attention classique, sauf qu'un biais calculé à partir de <strong>z</strong> (la représentation par paires) est ajouté aux scores avant le softmax — c'est ce qui permet au modèle de conditionner l'attention sur ce qu'il sait déjà des relations géométriques entre résidus.</p>
+        <h4>Le biais issu de z</h4>
+        <div class="formula-block">$$b^{\\text{pair}} = \\text{permute}\\big(\\text{Linear}_z(\\text{LayerNorm}(z))\\big) \\in \\mathbb{R}^{H \\times N \\times N}$$</div>
+        <h4>Attention complète (par tête h)</h4>
+        <div class="formula-block">$$A_h = \\text{softmax}\\!\\left(\\frac{Q_h K_h^\\top}{\\sqrt{d}} + b^{\\text{pair}}_h + b^{\\text{mask}}\\right), \\qquad \\text{sortie} = A_h V_h$$</div>
+        <p class="formula-note">Le facteur d'échelle 1/√d est appliqué directement sur Q avant le produit scalaire (pas visible dans la formule du softmax elle-même). Le biais de masque vaut −∞ pour les positions invalides, 0 sinon.</p>
+        <table class="dims-table">
+          <tr><td>Résidus (N)</td><td>longueur de la séquence</td></tr>
+          <tr><td>Têtes (H)</td><td>16</td></tr>
+          <tr><td>Dim. cachée par tête</td><td>24 (384 / 16)</td></tr>
+          <tr><td>Répété</td><td>48 fois (une par bloc Pairformer)</td></tr>
+        </table>
+      `,
+    },
+    "triangle-mult": {
+      title: "Triangle multiplication (outgoing / incoming)",
+      source: "layers/triangular_multiplicative_update.py:421-503",
+      html: `
+        <p>Avant même d'utiliser de l'attention, chaque bloc Pairformer met à jour <strong>z</strong> par une opération purement multiplicative : pas de softmax, pas de poids d'attention — juste deux projections de z combinées par un produit élément par élément puis sommées sur un troisième résidu k. C'est pour cette raison que ce mécanisme n'apparaît pas dans l'explorateur d'attention.</p>
+        <h4>Projections</h4>
+        <div class="formula-block">$$a_{ik} = \\text{mask}_{ik} \\cdot \\sigma\\big(\\text{Linear}_g(z_{ik})\\big) \\odot \\text{Linear}_p(z_{ik}), \\qquad b_{jk} \\text{ (idem, sur } z_{jk}\\text{)}$$</div>
+        <h4>Sortie — cas « outgoing »</h4>
+        <div class="formula-block">$$z_{ij}^{\\text{new}} = \\text{Linear}_z\\!\\left(\\text{LayerNorm}\\Big(\\sum_k a_{ik} \\odot b_{jk}\\Big)\\right) \\odot \\sigma\\big(\\text{Linear}_g(z_{ij})\\big)$$</div>
+        <p class="formula-note">Le cas « incoming » applique la même formule mais avec a et b transposés (indices échangés vers (k,i) et (k,j)) — le code garde exactement les mêmes couches, seule la permutation des axes change la direction du flux d'information dans le triangle (i, j, k).</p>
+        <table class="dims-table">
+          <tr><td>Dimension cachée</td><td>128</td></tr>
+          <tr><td>Répété</td><td>2× par bloc (outgoing puis incoming), × 48 blocs</td></tr>
+        </table>
+      `,
+    },
+    "triangle-start": {
+      title: "Triangle attention — starting node",
+      source: "layers/triangular_attention.py:31-172 (Algorithme AF3 n°14)",
+      html: `
+        <p>Contrairement à la self-attention sur <strong>s</strong>, la triangle attention opère directement sur <strong>z</strong> (la représentation par paires) et considère un troisième résidu k pour chaque paire (i, j) : « pour la paire (i, j), quels résidus k influencent le plus cette relation, en partant de i ? ». C'est ce mécanisme qui permet à AlphaFold3 de respecter des contraintes géométriques à trois corps (comme l'inégalité triangulaire des distances).</p>
+        <h4>Biais triangulaire</h4>
+        <div class="formula-block">$$b_{h,i,j} = \\text{permute}\\big(\\text{Linear}_z(\\text{LayerNorm}(z))\\big)$$</div>
+        <h4>Attention le long de l'axe k, pour chaque i fixé</h4>
+        <div class="formula-block">$$A_{h,i,j,k} = \\text{softmax}_k\\!\\left(\\frac{Q_{h,i,j} K_{h,i,k}^\\top}{\\sqrt{d}} + b_{h,i,k}\\right)$$</div>
+        <p class="formula-note">C'est exactement cette matrice A (moyennée sur les têtes) que l'explorateur capture et affiche — soit sous forme de cube [i,j,k] complet, soit moyennée sur k en une heatmap [i,j] plus simple à lire.</p>
+        <table class="dims-table">
+          <tr><td>Têtes</td><td>4</td></tr>
+          <tr><td>Forme brute capturée</td><td>N × N × N (un cube, pas une matrice)</td></tr>
+          <tr><td>Répété</td><td>48 fois</td></tr>
+        </table>
+      `,
+    },
+    "triangle-end": {
+      title: "Triangle attention — ending node",
+      source: "layers/triangular_attention.py:126-179 (Algorithme AF3 n°15)",
+      html: `
+        <p>Mécanisme strictement identique à « starting node », mais appliqué à la représentation par paires <strong>transposée</strong> : le code fait <code>z.transpose(-2, -3)</code> avant le calcul et défait la transposition après. Concrètement, l'attention porte cette fois sur une colonne j fixée plutôt qu'une ligne i fixée — les deux directions ensemble permettent au modèle de raisonner sur le triangle (i, j, k) dans les deux sens.</p>
+        <div class="formula-block">$$\\text{TriangleAttentionEnding}(z) = \\text{TriangleAttentionStarting}(z^{\\top})^{\\top}$$</div>
+        <p class="formula-note">Où la transposition porte sur les deux premiers axes spatiaux de z (les indices résidus i et j), pas sur les têtes ni le canal.</p>
+        <table class="dims-table">
+          <tr><td>Têtes</td><td>4</td></tr>
+          <tr><td>Forme brute capturée</td><td>N × N × N (un cube, pas une matrice)</td></tr>
+          <tr><td>Répété</td><td>48 fois</td></tr>
+        </table>
+      `,
+    },
+    "diffusion-schedule": {
+      title: "Diffusion — schedule de bruit et pas de débruitage",
+      source: "structure/diffusion_module.py:82-119, 278-400",
+      html: `
+        <p>Le module de diffusion part d'un nuage de points 3D purement aléatoire et le débruite progressivement, en environ 200 pas, jusqu'à obtenir les coordonnées finales. À chaque pas, le réseau (dont le <strong>Diffusion Transformer</strong> analysé ici) prédit la version débruitée du nuage, et le résultat sert à faire un petit pas vers cette prédiction.</p>
+        <h4>Schedule de bruit σ(t) — style EDM</h4>
+        <div class="formula-block">$$\\sigma(t) = \\sigma_{\\text{data}} \\cdot \\Big(s_{\\max}^{1/p} + t \\cdot (s_{\\min}^{1/p} - s_{\\max}^{1/p})\\Big)^{p}, \\qquad t \\in \\{0, \\tfrac{1}{T}, \\ldots, 1\\}$$</div>
+        <p class="formula-note">Valeurs par défaut : σ_data = 16, s_max = 160, s_min = 4×10⁻⁴, p = 7.</p>
+        <h4>Un pas de débruitage</h4>
+        <div class="formula-block">$$\\delta = \\frac{x_{\\text{bruité}} - x_{\\text{débruité}}}{t}, \\qquad x_{\\tau} = x_{\\text{bruité}} + \\text{step\\_scale} \\cdot (c_\\tau - t) \\cdot \\delta$$</div>
+        <p class="formula-note">step_scale = 1.5, gamma_0 = 0.8, gamma_min = 1.0, noise_scale = 1.003. Le code contient un commentaire des auteurs signalant un écart volontaire par rapport à la formule EDM d'origine (usage de x_bruité plutôt que x à cette étape).</p>
+        <table class="dims-table">
+          <tr><td>Diffusion Transformer</td><td>24 blocs · 16 têtes</td></tr>
+          <tr><td>Pas de rollout</td><td>~200 (1 seul capturé, au milieu)</td></tr>
+        </table>
+      `,
+    },
+    "msa-averaging": {
+      title: "MSA Pair-Weighted Averaging",
+      source: "layers/msa.py:560-624 (Algorithme AF3 n°10)",
+      html: `
+        <p>Dans AlphaFold2, le module MSA utilisait de la vraie self-attention entre séquences homologues (row/column attention). AlphaFold3 simplifie ce mécanisme : les poids de la moyenne pondérée sur les séquences ne viennent plus d'un produit Query·Key, mais directement d'une projection de <strong>z</strong>. C'est pour cette raison que ce module n'a pas de carte d'attention à proprement parler et n'apparaît pas dans l'explorateur.</p>
+        <h4>Poids — indépendants de la MSA elle-même</h4>
+        <div class="formula-block">$$w_{ij}^h = \\text{softmax}_j\\Big(\\text{Linear}_z(\\text{LayerNorm}(z))_{i,j,h}\\Big)$$</div>
+        <h4>Moyenne pondérée</h4>
+        <div class="formula-block">$$\\text{out}_i^h = \\sum_j w_{ij}^h \\cdot \\text{Linear}_v(m_j)^h$$</div>
+        <p class="formula-note">m désigne la représentation MSA (une ligne par séquence homologue). Comme w ne dépend que de z, toutes les séquences de la MSA sont moyennées avec exactement les mêmes poids.</p>
+        <table class="dims-table">
+          <tr><td>Répété</td><td>4 blocs (MSAModule)</td></tr>
+        </table>
+      `,
+    },
+    "adaln": {
+      title: "AdaLN — normalisation conditionnée par s",
+      source: "primitives/normalization.py:89-140 (Algorithme AF3 n°26)",
+      html: `
+        <p>Le Diffusion Transformer traite un signal <strong>a</strong> (le nuage de points en cours de débruitage) qui doit rester conscient du contexte de chaque résidu, porté par <strong>s</strong>. Plutôt qu'une simple LayerNorm, le modèle utilise une normalisation adaptative : l'échelle et le décalage appliqués à <strong>a</strong> sont eux-mêmes calculés à partir de <strong>s</strong>.</p>
+        <div class="formula-block">$$\\hat a = \\text{LayerNorm}_{\\text{sans affine}}(a), \\qquad \\hat s = \\text{LayerNorm}_{\\text{échelle seule}}(s)$$</div>
+        <div class="formula-block">$$\\text{AdaLN}(a, s) = \\sigma\\big(\\text{Linear}_g(\\hat s)\\big) \\odot \\hat a + \\text{Linear}_s(\\hat s)$$</div>
+        <p class="formula-note">Une seconde modulation (« AdaLN-Zero ») est appliquée après l'attention elle-même : la sortie est encore multipliée par σ(Linear(s)), pour que le bloc puisse apprendre à ne rien changer au départ de l'entraînement.</p>
+      `,
+    },
+    "plddt": {
+      title: "pLDDT — score de confiance par résidu",
+      source: "core/metrics/confidence.py:18-46",
+      html: `
+        <p>Le pLDDT affiché sur chaque structure (0 à 100) n'est pas directement prédit — le modèle prédit une <strong>distribution de probabilité sur 50 catégories de confiance</strong> (bins), et le score final est l'espérance de cette distribution.</p>
+        <div class="formula-block">$$p_b = \\text{softmax}(\\text{logits})_b, \\quad b = 0..49 \\qquad c_b = \\frac{b + 0.5}{50}$$</div>
+        <div class="formula-block">$$\\text{pLDDT} = \\sum_{b=0}^{49} p_b \\cdot c_b \\;\\times\\; 100$$</div>
+        <p class="formula-note">La même méthode (espérance pondérée sur des bins) est réutilisée pour le PAE et le PDE affichés dans les métriques de confiance, avec des bins exprimés en Ångströms plutôt qu'en confiance normalisée.</p>
+      `,
+    },
+  };
+
+  const overlay = document.getElementById("detail-overlay");
+  const titleEl = document.getElementById("detail-title");
+  const sourceEl = document.getElementById("detail-source");
+  const bodyEl = document.getElementById("detail-body");
+
+  function openDetail(key) {
+    const detail = DETAILS[key];
+    if (!detail) return;
+    titleEl.textContent = detail.title;
+    sourceEl.innerHTML = `<span class="source-ref">${detail.source}</span>`;
+    bodyEl.innerHTML = detail.html;
+    overlay.classList.add("open");
+    document.body.style.overflow = "hidden";
+
+    bodyEl.querySelectorAll(".formula-block").forEach((el) => {
+      const tex = el.textContent.trim().replace(/^\$\$|\$\$$/g, "");
+      try {
+        katex.render(tex, el, { displayMode: true, throwOnError: false });
+      } catch (e) {
+        el.textContent = tex;
+      }
+    });
+  }
+
+  function closeDetail() {
+    overlay.classList.remove("open");
+    document.body.style.overflow = "";
+  }
+
+  document.querySelectorAll("[data-detail]").forEach((el) => {
+    el.addEventListener("click", () => openDetail(el.dataset.detail));
+  });
+
+  document.getElementById("detail-close").addEventListener("click", closeDetail);
+  overlay.addEventListener("click", (e) => {
+    if (e.target === overlay) closeDetail();
+  });
+  document.addEventListener("keydown", (e) => {
+    if (e.key === "Escape" && overlay.classList.contains("open")) closeDetail();
+  });
+})();
+</script>
+{% endblock %}

@@ -1,0 +1,136 @@
+{% extends "predictor/base.html" %}
+
+{% block extra_head %}
+<style>
+.seq-form {
+  display: flex;
+  flex-direction: column;
+  gap: 0.9rem;
+  padding: 1.25rem;
+}
+.seq-form label {
+  font-size: 0.8rem;
+  font-weight: 600;
+  color: var(--ink-soft);
+}
+.seq-form textarea {
+  font-family: var(--mono);
+  font-size: 0.85rem;
+  line-height: 1.5;
+  padding: 0.8rem;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--bg);
+  color: var(--ink);
+  resize: vertical;
+  min-height: 110px;
+}
+.seq-form textarea:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 1px;
+}
+.seq-form .row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 1rem;
+  flex-wrap: wrap;
+}
+.seq-form .hint {
+  font-size: 0.76rem;
+  color: var(--ink-faint);
+}
+table.jobs {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.85rem;
+}
+table.jobs th {
+  text-align: left;
+  font-size: 0.66rem;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--ink-faint);
+  font-weight: 600;
+  padding: 0.5rem 1.1rem;
+  border-bottom: 1px solid var(--line);
+}
+table.jobs td {
+  padding: 0.65rem 1.1rem;
+  border-bottom: 1px solid var(--line);
+  color: var(--ink-soft);
+  vertical-align: middle;
+}
+table.jobs tr:last-child td { border-bottom: none; }
+table.jobs td.seq {
+  font-family: var(--mono);
+  font-size: 0.78rem;
+  color: var(--ink);
+  max-width: 320px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+table.jobs td a { text-decoration: none; font-weight: 600; }
+table.jobs td.date { font-family: var(--mono); font-size: 0.76rem; color: var(--ink-faint); }
+.empty-state {
+  padding: 2rem 1.1rem;
+  text-align: center;
+  color: var(--ink-faint);
+  font-size: 0.85rem;
+}
+</style>
+{% endblock %}
+
+{% block content %}
+<section class="panel">
+  <div class="panel-head">
+    <div>
+      <h2>Nouvelle prédiction</h2>
+      <span class="sub">OpenFold3 · modèle of3_ft3_v1</span>
+    </div>
+  </div>
+  <form class="seq-form" method="post" action="{% url 'index' %}">
+    {% csrf_token %}
+    <label for="sequence">Séquence protéique (code à une lettre)</label>
+    <textarea id="sequence" name="sequence" placeholder="MSKGEELFTGVVPILVELDGDVNGHKFSVSGEGEGDATYGKLTLKFICTTGKLPVPWPTLVTTFSYGVQCFSRYPDHMKQHDFFKSAMPEGYVQERTIFFKDDGNYKTRAEVKFEGDTLVNRIELKGIDFKEDGNILGHKLEYNYNSHNVYIMADKQKNGIKVNFKIRHNIEDGSVQLADHYQQNTPIGDGPVLLPDNHYLSTQSALSKDPNEKRDHMVLLEFVTAAGITHGMDELYK" required></textarea>
+    <div class="row">
+      <span class="hint">8 échantillons de diffusion seront générés · MSA via ColabFold server</span>
+      <button type="submit" class="btn">Lancer la prédiction</button>
+    </div>
+  </form>
+</section>
+
+<section class="panel">
+  <div class="panel-head">
+    <div>
+      <h2>Prédictions récentes</h2>
+      <span class="sub">{{ jobs|length }} job{{ jobs|length|pluralize }}</span>
+    </div>
+  </div>
+  {% if jobs %}
+  <table class="jobs">
+    <thead>
+      <tr>
+        <th>Séquence</th>
+        <th>Statut</th>
+        <th>plDDT</th>
+        <th>Lancé</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for job in jobs %}
+      <tr>
+        <td class="seq"><a href="{% url 'job_detail' job.id %}">{{ job.sequence }}</a></td>
+        <td><span class="status-pill {{ job.status }}">{{ job.get_status_display }}</span></td>
+        <td>{% if job.best_plddt %}{{ job.best_plddt|floatformat:1 }}{% else %}—{% endif %}</td>
+        <td class="date">{{ job.created_at|date:"d/m H:i" }}</td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+  {% else %}
+  <div class="empty-state">Aucune prédiction pour le moment.</div>
+  {% endif %}
+</section>
+{% endblock %}

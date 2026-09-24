@@ -1,0 +1,699 @@
+{% extends "predictor/base.html" %}
+{% load static %}
+
+{% block heading %}Explorateur d'attention{% endblock %}
+
+{% block header_extra %}
+<div class="meta" style="text-align:right; font-family: var(--mono); font-size: 0.78rem; color: var(--ink-soft);">
+  <a href="{% url 'job_detail' job.id %}" style="text-decoration:none;">&larr; retour au job</a>
+  <br>
+  <span id="status-pill-wrap"><span class="status-pill {{ run.status }}" id="status-pill">{{ run.get_status_display }}</span></span>
+</div>
+{% endblock %}
+
+{% block extra_head %}
+<style>
+.seq-line {
+  display: block;
+  font-family: var(--mono);
+  font-size: 0.72rem;
+  color: var(--ink-faint);
+  word-break: break-all;
+  line-height: 1.5;
+  padding: 0 0.1rem;
+}
+.progress-panel { padding: 1.25rem; display: flex; flex-direction: column; gap: 1rem; }
+.progress-step { font-size: 1.05rem; font-weight: 600; }
+.progress-track { height: 10px; border-radius: 6px; background: var(--accent-soft); overflow: hidden; }
+.progress-fill { height: 100%; background: var(--accent); border-radius: 6px; width: 30%; animation: indet 1.4s ease-in-out infinite; }
+@keyframes indet { 0% { transform: translateX(-100%); } 100% { transform: translateX(330%); } }
+.error-box {
+  background: var(--danger-soft);
+  border: 1px solid color-mix(in srgb, var(--danger) 40%, var(--line));
+  color: var(--danger);
+  border-radius: 8px;
+  padding: 0.9rem 1rem;
+  font-family: var(--mono);
+  font-size: 0.76rem;
+  white-space: pre-wrap;
+  overflow-x: auto;
+  max-height: 260px;
+  overflow-y: auto;
+}
+
+.main-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1.6fr) minmax(360px, 1fr);
+  gap: 1.5rem;
+  align-items: start;
+}
+@media (max-width: 960px) { .main-grid { grid-template-columns: 1fr; } }
+
+.page { max-width: min(96vw, 1680px); padding-left: clamp(1rem, 2vw, 1.75rem); padding-right: clamp(1rem, 2vw, 1.75rem); }
+
+#viewer {
+  width: 100%;
+  height: clamp(420px, 48vh, 520px);
+  position: relative;
+  background:
+    radial-gradient(ellipse at 50% 20%, color-mix(in srgb, var(--accent) 7%, transparent), transparent 60%),
+    var(--bg-panel);
+}
+@media (max-width: 960px) { #viewer { height: 380px; } }
+
+.family-tabs { display: flex; gap: 0.4rem; flex-wrap: wrap; }
+.family-tabs button {
+  font-family: var(--sans);
+  font-size: 0.78rem;
+  font-weight: 600;
+  border: 1px solid var(--line);
+  background: var(--bg-panel);
+  color: var(--ink-soft);
+  padding: 0.45rem 0.8rem;
+  border-radius: 7px;
+  cursor: pointer;
+}
+.family-tabs button:hover { border-color: var(--accent); color: var(--accent); }
+.family-tabs button.active { background: var(--accent-soft); border-color: var(--accent); color: var(--accent); }
+.family-tabs button:disabled { opacity: 0.35; cursor: not-allowed; }
+
+.control-row {
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+  padding: 0.9rem 1.1rem;
+  border-top: 1px solid var(--line);
+}
+.control-row .row-top { display: flex; justify-content: space-between; align-items: baseline; }
+.control-row label { font-size: 0.72rem; text-transform: uppercase; letter-spacing: 0.05em; color: var(--ink-faint); }
+.control-row .value { font-family: var(--mono); font-size: 0.82rem; color: var(--ink); font-weight: 600; }
+.control-row input[type="range"] { width: 100%; accent-color: var(--accent); }
+
+.side-col { display: flex; flex-direction: column; gap: 1.5rem; }
+
+.heatmap-wrap { padding: 1rem 1.1rem; display: flex; flex-direction: column; gap: 0.6rem; }
+#heatmap { width: 100%; aspect-ratio: 1 / 1; border-radius: 8px; cursor: crosshair; image-rendering: pixelated; }
+#cube-canvas { width: 100%; aspect-ratio: 1 / 1; border-radius: 8px; cursor: grab; background: var(--bg); display: none; }
+#cube-canvas.grabbing { cursor: grabbing; }
+.heatmap-legend { display: flex; justify-content: space-between; font-family: var(--mono); font-size: 0.66rem; color: var(--ink-faint); }
+.pair-readout { font-family: var(--mono); font-size: 0.78rem; color: var(--ink-soft); min-height: 1.2em; }
+.pair-readout strong { color: var(--ink); }
+.view-toggle { display: none; gap: 0.4rem; }
+.view-toggle.visible { display: flex; }
+.view-toggle button {
+  font-family: var(--sans);
+  font-size: 0.72rem;
+  font-weight: 600;
+  border: 1px solid var(--line);
+  background: var(--bg-panel);
+  color: var(--ink-soft);
+  padding: 0.3rem 0.6rem;
+  border-radius: 6px;
+  cursor: pointer;
+}
+.view-toggle button.active { background: var(--accent-soft); border-color: var(--accent); color: var(--accent); }
+.cube-controls { display: none; flex-direction: column; gap: 0.4rem; }
+.cube-controls.visible { display: flex; }
+
+#entropy-chart { width: 100%; height: 90px; }
+
+.note { font-size: 0.78rem; color: var(--ink-faint); line-height: 1.6; padding: 0.9rem 1.1rem; }
+
+.empty-state { padding: 2rem 1.1rem; text-align: center; color: var(--ink-faint); font-size: 0.85rem; }
+</style>
+{% endblock %}
+
+{% block content %}
+<p class="seq-line">{{ job.sequence }}</p>
+
+{% if run.is_active %}
+<section class="panel">
+  <div class="panel-head">
+    <div>
+      <h2>Extraction en cours</h2>
+      <span class="sub">capture des cartes d'attention ({{ run.layer_families|join:", " }})</span>
+    </div>
+  </div>
+  <div class="progress-panel">
+    <span class="progress-step" id="progress-step">{{ run.get_status_display }}</span>
+    <div class="progress-track"><div class="progress-fill"></div></div>
+  </div>
+</section>
+{% endif %}
+
+{% if run.status == "failed" %}
+<section class="panel">
+  <div class="panel-head"><h2>Échec de l'extraction</h2></div>
+  <div style="padding: 0 1.25rem 1.25rem;">
+    <div class="error-box">{{ run.error_message }}</div>
+  </div>
+</section>
+{% endif %}
+
+{% if run.status == "completed" and run.meta %}
+<div class="main-grid">
+  <section class="panel">
+    <div class="panel-head">
+      <div>
+        <h2 id="viewer-title">Structure — attention du résidu sélectionné</h2>
+        <span class="sub" id="viewer-sub">résidu le plus connecté sélectionné automatiquement</span>
+      </div>
+      <div class="family-tabs" id="family-tabs">
+        {% for value, label in attention_family_choices %}
+        <button type="button" data-family="{{ value }}" {% if value not in run.layer_families %}disabled{% endif %}>{{ label }}</button>
+        {% endfor %}
+      </div>
+    </div>
+    <div id="viewer"></div>
+    <div class="control-row">
+      <div class="row-top">
+        <label for="block-slider">Bloc</label>
+        <span class="value" id="block-value">0</span>
+      </div>
+      <input type="range" id="block-slider" min="0" max="0" value="0" step="1">
+    </div>
+    <div class="control-row">
+      <div class="row-top">
+        <label for="threshold-slider">Seuil des liens</label>
+        <span class="value" id="threshold-value">0.06</span>
+      </div>
+      <input type="range" id="threshold-slider" min="0" max="0.5" value="0.06" step="0.01">
+    </div>
+  </section>
+
+  <div class="side-col">
+    <section class="panel">
+      <div class="panel-head">
+        <div>
+          <h2>Carte d'attention</h2>
+          <span class="sub" id="heatmap-sub">{{ run.meta.n_residues }} résidus</span>
+        </div>
+        <div class="view-toggle" id="view-toggle">
+          <button type="button" data-view="heatmap" class="active">Heatmap (moy. sur k)</button>
+          <button type="button" data-view="cube">Cube 3D (i,j,k)</button>
+        </div>
+      </div>
+      <div class="heatmap-wrap">
+        <canvas id="heatmap" width="256" height="256"></canvas>
+        <canvas id="cube-canvas" width="400" height="400"></canvas>
+        <div class="heatmap-legend"><span>faible</span><span>élevée</span></div>
+        <div class="pair-readout" id="pair-readout">Survolez la carte pour voir une paire de résidus.</div>
+        <div class="cube-controls" id="cube-controls">
+          <div class="control-row" style="padding: 0;">
+            <div class="row-top">
+              <label for="cube-threshold">Seuil d'affichage des voxels</label>
+              <span class="value" id="cube-threshold-value">0.60</span>
+            </div>
+            <input type="range" id="cube-threshold" min="0" max="1" value="0.6" step="0.02">
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <section class="panel">
+      <div class="panel-head">
+        <h2>Profil par couche</h2>
+        <span class="sub">entropie moyenne — local (bas) vs. diffus (haut)</span>
+      </div>
+      <div style="padding: 1rem 1.1rem;">
+        <canvas id="entropy-chart" width="600" height="90"></canvas>
+      </div>
+    </section>
+
+    <p class="note">
+      <strong>Lecture :</strong> chaque case de la carte est le poids d'attention moyen (toutes têtes) entre deux résidus pour le bloc sélectionné. Une entropie basse indique une attention concentrée sur peu de partenaires (souvent des contacts locaux) ; une entropie haute indique une attention diffuse sur beaucoup de résidus (souvent lié à la topologie globale du repliement).
+    </p>
+  </div>
+</div>
+{% elif run.status == "completed" %}
+<div class="empty-state">Aucune donnée d'attention n'a été produite par cette extraction.</div>
+{% endif %}
+{% endblock %}
+
+{% block extra_body %}
+{% if run.status == "completed" and run.meta and best_cif %}
+<script src="{% static 'predictor/3Dmol-min.js' %}"></script>
+{{ best_cif|json_script:"cif-raw" }}
+{{ run.meta|json_script:"meta-raw" }}
+{{ run.layer_families|json_script:"families-raw" }}
+{{ job.sequence|json_script:"sequence-raw" }}
+<script>
+(function() {
+  const meta = JSON.parse(document.getElementById("meta-raw").textContent);
+  const jobId = "{{ job.id }}";
+  const runId = "{{ run.id }}";
+  const enabledFamilies = JSON.parse(document.getElementById("families-raw").textContent);
+  const sequence = JSON.parse(document.getElementById("sequence-raw").textContent);
+
+  const viewer = $3Dmol.createViewer(document.getElementById("viewer"), { backgroundColor: "transparent" });
+  const cifText = JSON.parse(document.getElementById("cif-raw").textContent);
+  viewer.addModel(cifText, "cif");
+  viewer.setStyle({}, { cartoon: { color: "#8a8b81" } });
+  viewer.zoomTo();
+  viewer.render();
+
+  const familyCache = {};
+  let currentFamily = null;
+  let currentBlock = 0;
+  let currentWeights = null; // [N, N] for the selected block
+  let selectedResidue = null;
+  let threshold = 0.06;
+  const MIN_VISIBLE_LINKS = 12;
+  const MAX_VISIBLE_LINKS = 24;
+  const residuePoints = new Map();
+  let hoverLabel = null;
+
+  const TRIANGLE_FAMILIES = new Set(["triangle_start", "triangle_end"]);
+
+  function residueLetter(resi) {
+    return sequence[resi - 1] || "?";
+  }
+
+  function residueLabel(resi) {
+    return `${resi} (${residueLetter(resi)})`;
+  }
+
+  function residuePoint(resi) {
+    if (residuePoints.has(resi)) return residuePoints.get(resi);
+    const atoms = viewer.selectedAtoms({ resi });
+    const ca = atoms.find((a) => a.atom === "CA") || atoms[0];
+    if (!ca) return null;
+    const point = { x: ca.x, y: ca.y, z: ca.z };
+    residuePoints.set(resi, point);
+    return point;
+  }
+
+  function showResidueHover(atom) {
+    const resi = atom.resi;
+    if (!resi) return;
+    if (hoverLabel) viewer.removeLabel(hoverLabel);
+    hoverLabel = viewer.addLabel(residueLabel(resi), {
+      position: { x: atom.x, y: atom.y, z: atom.z },
+      backgroundColor: "#1b1f26",
+      backgroundOpacity: 0.88,
+      fontColor: "#eceae3",
+      fontSize: 14,
+      borderColor: "#7ba7cd",
+      borderThickness: 1,
+      inFront: true,
+    });
+    pairReadout.innerHTML = `Résidu <strong>${residueLabel(resi)}</strong>`;
+    viewer.render();
+  }
+
+  function hideResidueHover() {
+    if (!hoverLabel) return;
+    viewer.removeLabel(hoverLabel);
+    hoverLabel = null;
+    viewer.render();
+  }
+
+  viewer.setHoverable({}, true, showResidueHover, hideResidueHover);
+
+  const heatmap = document.getElementById("heatmap");
+  const heatmapCtx = heatmap.getContext("2d");
+  const cubeCanvas = document.getElementById("cube-canvas");
+  const cubeCtx = cubeCanvas.getContext("2d");
+  const entropyCanvas = document.getElementById("entropy-chart");
+  const entropyCtx = entropyCanvas.getContext("2d");
+  const blockSlider = document.getElementById("block-slider");
+  const blockValue = document.getElementById("block-value");
+  const thresholdSlider = document.getElementById("threshold-slider");
+  const thresholdValue = document.getElementById("threshold-value");
+  const pairReadout = document.getElementById("pair-readout");
+  const viewerTitle = document.getElementById("viewer-title");
+  const viewerSub = document.getElementById("viewer-sub");
+  const viewToggle = document.getElementById("view-toggle");
+  const cubeControls = document.getElementById("cube-controls");
+  const cubeThresholdSlider = document.getElementById("cube-threshold");
+  const cubeThresholdValue = document.getElementById("cube-threshold-value");
+
+  let currentView = "heatmap"; // "heatmap" | "cube"
+  let cubeData = null; // { shape: [I,J,K], weights: [[[...]]] }
+  let cubeThreshold = 0.6;
+  let cubeRotX = -0.5;
+  let cubeRotY = 0.6;
+  let isDragging = false;
+  let dragStart = { x: 0, y: 0 };
+
+  function shapeUrl(family) {
+    return `/jobs/${jobId}/attention/${runId}/data/${family}/`;
+  }
+
+  function cubeUrl(family, block, threshold) {
+    return `/jobs/${jobId}/attention/${runId}/cube/${family}/${block}/?threshold=${threshold}`;
+  }
+
+  function blockUrl(family, block) {
+    return `/jobs/${jobId}/attention/${runId}/data/${family}/${block}/`;
+  }
+
+  async function loadFamilyShape(family) {
+    if (!familyCache[family]) {
+      const res = await fetch(shapeUrl(family));
+      if (!res.ok) return null;
+      familyCache[family] = await res.json();
+    }
+    return familyCache[family];
+  }
+
+  const blockCache = {};
+
+  async function loadBlockWeights(family, block) {
+    const key = `${family}:${block}`;
+    if (!blockCache[key]) {
+      const res = await fetch(blockUrl(family, block));
+      if (!res.ok) return null;
+      const data = await res.json();
+      blockCache[key] = data.weights;
+    }
+    return blockCache[key];
+  }
+
+  const cubeCache = {};
+
+  async function loadCubePoints(family, block, threshold) {
+    const key = `${family}:${block}:${threshold.toFixed(2)}`;
+    if (!cubeCache[key]) {
+      const res = await fetch(cubeUrl(family, block, threshold));
+      if (!res.ok) return null;
+      cubeCache[key] = await res.json();
+    }
+    return cubeCache[key];
+  }
+
+  function drawHeatmap() {
+    if (!currentWeights) return;
+    const n = currentWeights.length;
+    const img = heatmapCtx.createImageData(n, n);
+    let max = 0;
+    for (let i = 0; i < n; i++) for (let j = 0; j < n; j++) max = Math.max(max, currentWeights[i][j]);
+    max = max || 1;
+    for (let i = 0; i < n; i++) {
+      for (let j = 0; j < n; j++) {
+        const v = currentWeights[i][j] / max;
+        const idx = (i * n + j) * 4;
+        // low = cool (blue-ish), high = warm (red-ish) — reuse the pLDDT-ish ramp inverted
+        const r = Math.round(217 * v + 44 * (1 - v));
+        const g = Math.round(112 * v + 95 * (1 - v));
+        const b = Math.round(79 * v + 138 * (1 - v));
+        img.data[idx] = r; img.data[idx + 1] = g; img.data[idx + 2] = b; img.data[idx + 3] = 255;
+      }
+    }
+    heatmap.width = n; heatmap.height = n;
+    heatmapCtx.putImageData(img, 0, 0);
+  }
+
+  function project3D(x, y, z, cx, cy, scale) {
+    // Simple rotation (Y then X) + isometric-ish orthographic projection.
+    const cosY = Math.cos(cubeRotY), sinY = Math.sin(cubeRotY);
+    const cosX = Math.cos(cubeRotX), sinX = Math.sin(cubeRotX);
+    const x1 = x * cosY - z * sinY;
+    const z1 = x * sinY + z * cosY;
+    const y1 = y * cosX - z1 * sinX;
+    const z2 = y * sinX + z1 * cosX;
+    return { sx: cx + x1 * scale, sy: cy + y1 * scale, depth: z2 };
+  }
+
+  function cubeColor(v) {
+    if (v > 0.85) return "#d9704f";
+    if (v > 0.7) return "#e8c468";
+    return "#6fb3c9";
+  }
+
+  function drawCube() {
+    const w = cubeCanvas.width, h = cubeCanvas.height;
+    cubeCtx.fillStyle = getComputedStyle(document.documentElement).getPropertyValue("--bg-panel") || "#1b1f26";
+    cubeCtx.fillRect(0, 0, w, h);
+    if (!cubeData) return;
+
+    // cubeData.points are already filtered server-side by threshold (see
+    // attention_cube_block_data) and pre-normalized to [threshold, 1].
+    const [I, J, K] = cubeData.shape;
+    const cx = w / 2, cy = h / 2;
+    const extent = Math.max(I, J, K) || 1;
+    const scale = (Math.min(w, h) * 0.38) / (extent / 2);
+
+    const projected = cubeData.points.map(([i, j, k, v]) => {
+      const px = i - I / 2, py = j - J / 2, pz = k - K / 2;
+      return { ...project3D(px, py, pz, cx, cy, scale), v };
+    });
+    projected.sort((a, b) => a.depth - b.depth);
+
+    for (const p of projected) {
+      cubeCtx.fillStyle = cubeColor(p.v);
+      const r = 1.5 + p.v * 1.5;
+      cubeCtx.beginPath();
+      cubeCtx.arc(p.sx, p.sy, r, 0, Math.PI * 2);
+      cubeCtx.fill();
+    }
+
+    if (projected.length === 0) {
+      cubeCtx.fillStyle = "#8a8b81";
+      cubeCtx.font = "12px sans-serif";
+      cubeCtx.textAlign = "center";
+      cubeCtx.fillText("Aucun voxel au-dessus du seuil — baissez le seuil", cx, cy);
+    }
+  }
+
+  cubeCanvas.addEventListener("mousedown", (e) => {
+    isDragging = true;
+    cubeCanvas.classList.add("grabbing");
+    dragStart = { x: e.clientX, y: e.clientY };
+  });
+  window.addEventListener("mouseup", () => {
+    isDragging = false;
+    cubeCanvas.classList.remove("grabbing");
+  });
+  window.addEventListener("mousemove", (e) => {
+    if (!isDragging) return;
+    const dx = e.clientX - dragStart.x, dy = e.clientY - dragStart.y;
+    dragStart = { x: e.clientX, y: e.clientY };
+    cubeRotY += dx * 0.01;
+    cubeRotX += dy * 0.01;
+    drawCube();
+  });
+
+  let thresholdDebounce = null;
+  cubeThresholdSlider.addEventListener("input", () => {
+    cubeThreshold = parseFloat(cubeThresholdSlider.value);
+    cubeThresholdValue.textContent = cubeThreshold.toFixed(2);
+    clearTimeout(thresholdDebounce);
+    thresholdDebounce = setTimeout(async () => {
+      cubeData = await loadCubePoints(currentFamily, currentBlock, cubeThreshold);
+      drawCube();
+    }, 200);
+  });
+
+  async function setView(view) {
+    currentView = view;
+    document.querySelectorAll("#view-toggle button").forEach((b) => {
+      b.classList.toggle("active", b.dataset.view === view);
+    });
+    heatmap.style.display = view === "heatmap" ? "block" : "none";
+    cubeCanvas.style.display = view === "cube" ? "block" : "none";
+    cubeControls.classList.toggle("visible", view === "cube");
+
+    if (view === "cube") {
+      cubeData = await loadCubePoints(currentFamily, currentBlock, cubeThreshold);
+      drawCube();
+    }
+  }
+
+  document.querySelectorAll("#view-toggle button").forEach((btn) => {
+    btn.addEventListener("click", () => setView(btn.dataset.view));
+  });
+
+  function drawEntropyChart(entropyPerBlock) {
+    const w = entropyCanvas.width, h = entropyCanvas.height;
+    entropyCtx.clearRect(0, 0, w, h);
+    if (!entropyPerBlock || entropyPerBlock.length === 0) return;
+    const max = Math.max(...entropyPerBlock, 0.001);
+    const barW = w / entropyPerBlock.length;
+    entropyPerBlock.forEach((v, i) => {
+      const barH = (v / max) * (h - 12);
+      const isCurrent = i === currentBlock;
+      entropyCtx.fillStyle = isCurrent ? "#2f5f8a" : "#8fa6bd55";
+      entropyCtx.fillRect(i * barW, h - barH, Math.max(barW - 1, 1), barH);
+    });
+  }
+
+  function strongestResidue(weights) {
+    if (!weights || weights.length === 0) return null;
+    let bestIndex = 0;
+    let bestScore = -Infinity;
+    for (let i = 0; i < weights.length; i++) {
+      let score = 0;
+      for (let j = 0; j < weights[i].length; j++) {
+        if (i !== j) score += weights[i][j];
+      }
+      if (score > bestScore) {
+        bestScore = score;
+        bestIndex = i;
+      }
+    }
+    return bestIndex;
+  }
+
+  function connectedResidues(row, maxWeight) {
+    if (!row || maxWeight <= 0) return [];
+    return row
+      .map((value, index) => ({ index, value, normalized: value / maxWeight }))
+      .filter((item) => item.index !== selectedResidue && item.value > 0)
+      .sort((a, b) => b.value - a.value)
+      .filter((item, rank) => item.normalized >= threshold || rank < MIN_VISIBLE_LINKS)
+      .slice(0, MAX_VISIBLE_LINKS);
+  }
+
+  function linkColor(weight) {
+    if (weight > 0.7) return "#d9704f";
+    if (weight > 0.4) return "#e8c468";
+    return "#6fb3c9";
+  }
+
+  function updateResidueColoring() {
+    viewer.removeAllShapes();
+    viewer.setStyle({}, { cartoon: { color: "#8a8b81" } });
+    if (!currentWeights || selectedResidue === null) {
+      viewer.render();
+      return;
+    }
+    const row = currentWeights[selectedResidue];
+    const max = Math.max(...row);
+    const sourcePoint = residuePoint(selectedResidue + 1);
+    const connected = connectedResidues(row, max);
+    for (const item of connected) {
+      const color = linkColor(item.normalized);
+      viewer.setStyle({ resi: item.index + 1 }, { cartoon: { color: color } });
+      const targetPoint = residuePoint(item.index + 1);
+      if (!sourcePoint || !targetPoint) continue;
+      viewer.addCylinder({
+        start: sourcePoint,
+        end: targetPoint,
+        radius: 0.08 + item.normalized * 0.08,
+        color,
+        alpha: 0.75,
+        fromCap: 1,
+        toCap: 1,
+      });
+    }
+    viewer.setStyle({ resi: selectedResidue + 1 }, { cartoon: { color: "#2c5c8a" } });
+    if (sourcePoint) {
+      viewer.addSphere({ center: sourcePoint, radius: 0.75, color: "#2c5c8a", alpha: 0.85 });
+    }
+    viewerSub.textContent = `résidu ${residueLabel(selectedResidue + 1)} sélectionné — ${connected.length} liens affichés — bloc ${currentBlock}`;
+    viewer.render();
+  }
+
+  function setPairReadout(i, j, v) {
+    pairReadout.innerHTML = `Résidu <strong>${residueLabel(i + 1)}</strong> &harr; résidu <strong>${residueLabel(j + 1)}</strong> : poids <strong>${v.toFixed(4)}</strong>`;
+  }
+
+  heatmap.addEventListener("mousemove", (e) => {
+    if (!currentWeights) return;
+    const rect = heatmap.getBoundingClientRect();
+    const n = currentWeights.length;
+    const i = Math.floor(((e.clientX - rect.left) / rect.width) * n);
+    const j = Math.floor(((e.clientY - rect.top) / rect.height) * n);
+    if (i < 0 || j < 0 || i >= n || j >= n) return;
+    setPairReadout(j, i, currentWeights[j][i]);
+  });
+
+  heatmap.addEventListener("click", (e) => {
+    if (!currentWeights) return;
+    const rect = heatmap.getBoundingClientRect();
+    const n = currentWeights.length;
+    const j = Math.floor(((e.clientY - rect.top) / rect.height) * n);
+    if (j < 0 || j >= n) return;
+    selectedResidue = j;
+    viewerSub.textContent = `résidu ${residueLabel(j + 1)} sélectionné — bloc ${currentBlock}`;
+    updateResidueColoring();
+  });
+
+  async function refreshCurrentView() {
+    if (currentView === "cube" && TRIANGLE_FAMILIES.has(currentFamily)) {
+      cubeData = await loadCubePoints(currentFamily, currentBlock, cubeThreshold);
+      drawCube();
+    } else {
+      currentWeights = await loadBlockWeights(currentFamily, currentBlock);
+      if (selectedResidue === null) selectedResidue = strongestResidue(currentWeights);
+      drawHeatmap();
+      updateResidueColoring();
+    }
+  }
+
+  async function selectFamily(family) {
+    currentFamily = family;
+    document.querySelectorAll("#family-tabs button").forEach((b) => {
+      b.classList.toggle("active", b.dataset.family === family);
+    });
+
+    const isTriangle = TRIANGLE_FAMILIES.has(family);
+    viewToggle.classList.toggle("visible", isTriangle);
+    if (!isTriangle && currentView === "cube") {
+      await setView("heatmap");
+    }
+
+    const shape = await loadFamilyShape(family);
+    if (!shape) return;
+
+    const nBlocks = shape.shape[0];
+    blockSlider.max = Math.max(nBlocks - 1, 0);
+    currentBlock = Math.min(currentBlock, nBlocks - 1);
+    blockSlider.value = currentBlock;
+    blockValue.textContent = currentBlock;
+
+    selectedResidue = null;
+    await refreshCurrentView();
+
+    const familyMeta = meta.families ? meta.families[family] : null;
+    drawEntropyChart(familyMeta ? familyMeta.entropy_per_block : null);
+  }
+
+  blockSlider.addEventListener("input", async () => {
+    currentBlock = parseInt(blockSlider.value, 10);
+    blockValue.textContent = currentBlock;
+    selectedResidue = null;
+    await refreshCurrentView();
+    const familyMeta = meta.families ? meta.families[currentFamily] : null;
+    drawEntropyChart(familyMeta ? familyMeta.entropy_per_block : null);
+  });
+
+  thresholdSlider.addEventListener("input", () => {
+    threshold = parseFloat(thresholdSlider.value);
+    thresholdValue.textContent = threshold.toFixed(2);
+    updateResidueColoring();
+  });
+
+  document.querySelectorAll("#family-tabs button").forEach((btn) => {
+    if (btn.disabled) return;
+    btn.addEventListener("click", () => selectFamily(btn.dataset.family));
+  });
+
+  const firstEnabled = enabledFamilies[0];
+  if (firstEnabled) selectFamily(firstEnabled);
+})();
+</script>
+{% endif %}
+
+{% if run.is_active %}
+<script>
+(function() {
+  const statusUrl = "{% url 'attention_status' job.id run.id %}";
+  function poll() {
+    fetch(statusUrl)
+      .then((r) => r.json())
+      .then((data) => {
+        if (!data.is_active) {
+          window.location.reload();
+          return;
+        }
+        setTimeout(poll, 3000);
+      })
+      .catch(() => setTimeout(poll, 5000));
+  }
+  poll();
+})();
+</script>
+{% endif %}
+{% endblock %}

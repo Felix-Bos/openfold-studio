@@ -1,0 +1,4 @@
+# Interface web (OpenFold Studio). OpenFold3-MLX a son propre environnement,
+# installe par scripts/setup_openfold.sh.
+Django>=5.2,<6
+numpy>=1.26

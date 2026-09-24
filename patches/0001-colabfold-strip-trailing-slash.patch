@@ -1,0 +1,12 @@
+diff --git a/openfold3/core/data/tools/colabfold_msa_server.py b/openfold3/core/data/tools/colabfold_msa_server.py
+index 2cd0825a..46114b88 100644
+--- a/openfold3/core/data/tools/colabfold_msa_server.py
++++ b/openfold3/core/data/tools/colabfold_msa_server.py
+@@ -108,6 +108,7 @@ def query_colabfold_msa_server(
+             is True, also returns a list of template paths for each sequence.
+     """
+ 
++    host_url = str(host_url).rstrip("/")
+     submission_endpoint = "ticket/pair" if use_pairing else "ticket/msa"
+ 
+     headers = {}
