@@ -1,0 +1,300 @@
+{% extends "base.html" %}
+{% load static %}
+
+{% block title %}How the model works{% endblock %}
+
+{% block page_styles %}
+<link rel="stylesheet" href="{% static 'vendor/katex/katex.min.css' %}">
+<link rel="stylesheet" href="{% static 'css/pages/architecture.css' %}">
+{% endblock %}
+
+{% block content %}
+<header class="page-header">
+  <div>
+    <p class="eyebrow">Model guide</p>
+    <h1>How OpenFold3 predicts a structure</h1>
+    <p class="lede">
+      OpenFold3 predicts the 3D structure of a protein from its sequence in three stages:
+      it first builds rich representations from an alignment of homologous sequences (MSA) and known similar structures (templates),
+      then refines them in a long reasoning trunk called the <strong>Pairformer</strong>,
+      and finally generates atom coordinates by <strong>diffusion</strong>, starting from a noisy point cloud that it progressively denoises into the final structure.
+      The attention explorer looks inside two of these stages to show <strong>which residues the model links together</strong>.
+    </p>
+  </div>
+</header>
+
+<section class="panel">
+  <div class="panel-head">
+    <div>
+      <h2>Pipeline overview</h2>
+      <span class="sub">from sequence to 3D structure · click the coloured boxes for details</span>
+    </div>
+  </div>
+  <div class="legend-row">
+    <span class="legend-item"><span class="legend-swatch" style="background: var(--accent);"></span>Pairformer self-attention</span>
+    <span class="legend-item"><span class="legend-swatch" style="background: var(--c-high);"></span>Triangle attention (starting)</span>
+    <span class="legend-item"><span class="legend-swatch" style="background: var(--c-low);"></span>Triangle attention (ending)</span>
+    <span class="legend-item"><span class="legend-swatch" style="background: var(--c-vlow);"></span>Diffusion Transformer (token)</span>
+    <span class="legend-item not-analyzed"><span class="legend-swatch"></span>Not analysed by the tool</span>
+  </div>
+  <div class="diagram-wrap">
+    <svg viewBox="0 0 1180 320" width="1180" height="320" role="img" aria-label="OpenFold3 pipeline diagram">
+      <defs>
+        <marker id="arrowhead" markerWidth="8" markerHeight="8" refX="7" refY="4" orient="auto">
+          <path d="M0,0 L8,4 L0,8 Z" fill="var(--ink-faint)"></path>
+        </marker>
+      </defs>
+
+      <!-- Sequence -->
+      <rect x="10" y="120" width="110" height="70" rx="8" class="stage-box"></rect>
+      <text x="65" y="150" text-anchor="middle" class="stage-title">Sequence</text>
+      <text x="65" y="167" text-anchor="middle" class="stage-sub">amino acids</text>
+
+      <path d="M120,155 H165" class="flow-arrow"></path>
+
+      <!-- MSA + Templates -->
+      <rect x="165" y="90" width="130" height="60" rx="8" class="stage-box"></rect>
+      <text x="230" y="115" text-anchor="middle" class="stage-title" style="font-size:12px">MSA</text>
+      <text x="230" y="132" text-anchor="middle" class="stage-sub">ColabFold server</text>
+
+      <rect x="165" y="170" width="130" height="60" rx="8" class="stage-box"></rect>
+      <text x="230" y="195" text-anchor="middle" class="stage-title" style="font-size:12px">Templates</text>
+      <text x="230" y="212" text-anchor="middle" class="stage-sub">similar structures</text>
+
+      <path d="M295,120 L340,150" class="flow-arrow"></path>
+      <path d="M295,200 L340,160" class="flow-arrow"></path>
+
+      <!-- Embedders -->
+      <rect x="340" y="120" width="120" height="70" rx="8" class="stage-box"></rect>
+      <text x="400" y="148" text-anchor="middle" class="stage-title" style="font-size:12px">Input +</text>
+      <text x="400" y="163" text-anchor="middle" class="stage-title" style="font-size:12px">MSA Embedders</text>
+      <text x="400" y="180" text-anchor="middle" class="stage-sub">s, z init</text>
+
+      <path d="M460,155 H505" class="flow-arrow"></path>
+      <text x="482" y="147" text-anchor="middle" class="flow-label">s, z</text>
+
+      <!-- Pairformer -->
+      <g class="clickable-group" data-detail="pairformer-self-attn">
+        <rect x="505" y="95" width="220" height="145" rx="10" class="stage-box analyzed" style="stroke: var(--accent);"></rect>
+        <text x="615" y="122" text-anchor="middle" class="stage-title" style="font-size:14px">Pairformer</text>
+        <text x="615" y="139" text-anchor="middle" class="stage-sub">48 blocks</text>
+        <rect x="522" y="150" width="186" height="26" rx="5" style="fill: color-mix(in srgb, var(--accent) 16%, transparent); stroke: var(--accent); stroke-width: 1;"></rect>
+        <text x="615" y="167" text-anchor="middle" class="badge-text" style="fill: var(--accent);">SELF-ATTENTION (single)</text>
+      </g>
+      <g class="clickable-group" data-detail="triangle-start">
+        <rect x="522" y="182" width="90" height="24" rx="5" style="fill: color-mix(in srgb, var(--c-high) 20%, transparent); stroke: var(--c-high); stroke-width: 1;"></rect>
+        <text x="567" y="198" text-anchor="middle" class="badge-text" style="fill: color-mix(in srgb, var(--c-high) 65%, var(--ink));">TRIANGLE start</text>
+      </g>
+      <g class="clickable-group" data-detail="triangle-end">
+        <rect x="618" y="182" width="90" height="24" rx="5" style="fill: color-mix(in srgb, var(--c-low) 20%, transparent); stroke: var(--c-low); stroke-width: 1;"></rect>
+        <text x="663" y="198" text-anchor="middle" class="badge-text" style="fill: color-mix(in srgb, var(--c-low) 55%, var(--ink));">TRIANGLE end</text>
+      </g>
+      <text x="615" y="222" text-anchor="middle" class="repeat-tag">× 48, residual</text>
+      <text x="615" y="234" text-anchor="middle" class="click-hint">click a badge for the formulas</text>
+
+      <path d="M725,167 H770" class="flow-arrow"></path>
+      <text x="748" y="159" text-anchor="middle" class="flow-label">s, z</text>
+
+      <!-- Diffusion Module -->
+      <g class="clickable-group" data-detail="diffusion-schedule">
+        <rect x="770" y="95" width="200" height="145" rx="10" class="stage-box analyzed" style="stroke: var(--c-vlow);"></rect>
+        <text x="870" y="122" text-anchor="middle" class="stage-title" style="font-size:14px">Diffusion Module</text>
+        <text x="870" y="139" text-anchor="middle" class="stage-sub">~200-step rollout</text>
+        <rect x="787" y="150" width="166" height="26" rx="5" style="fill: color-mix(in srgb, var(--c-vlow) 16%, transparent); stroke: var(--c-vlow); stroke-width: 1;"></rect>
+        <text x="870" y="167" text-anchor="middle" class="badge-text" style="fill: color-mix(in srgb, var(--c-vlow) 60%, var(--ink));">DIFFUSION TRANSFORMER</text>
+      </g>
+
+      <text x="870" y="192" text-anchor="middle" class="stage-sub" style="font-size:9.5px;">+ atom attention encoder/decoder</text>
+      <text x="870" y="207" text-anchor="middle" class="repeat-tag">not analysed (windowed, per atom)</text>
+      <text x="870" y="222" text-anchor="middle" class="repeat-tag">24 token-level blocks, analysed</text>
+      <text x="870" y="234" text-anchor="middle" class="click-hint">click for the noise schedule</text>
+
+      <path d="M970,167 H1015" class="flow-arrow"></path>
+
+      <!-- Structure -->
+      <g class="clickable-group" data-detail="plddt">
+        <rect x="1015" y="120" width="155" height="70" rx="8" class="stage-box"></rect>
+        <text x="1092" y="148" text-anchor="middle" class="stage-title" style="font-size:12px">3D structure</text>
+        <text x="1092" y="164" text-anchor="middle" class="stage-sub">coordinates + pLDDT</text>
+        <text x="1092" y="179" text-anchor="middle" class="stage-sub">8 samples</text>
+      </g>
+    </svg>
+  </div>
+  <p class="diagram-caption">
+    s = "single" representation (one vector per residue), z = "pair" representation (one vector per residue pair). Coloured boxes are the mechanisms the attention explorer can extract; the diffusion module also contains windowed atom-to-atom attention, which is not analysed here because it is not a plain residue-to-residue map.
+  </p>
+  <div class="spec-grid">
+    <div class="spec-cell"><span class="label">Pairformer</span><span class="value">48 blocks</span></div>
+    <div class="spec-cell"><span class="label">Self-attention heads</span><span class="value">16</span></div>
+    <div class="spec-cell"><span class="label">Triangle attention heads</span><span class="value">4</span></div>
+    <div class="spec-cell"><span class="label">Diffusion Transformer</span><span class="value">24 blocks</span></div>
+    <div class="spec-cell"><span class="label">Single representation (s)</span><span class="value">384 dim</span></div>
+    <div class="spec-cell"><span class="label">Pair representation (z)</span><span class="value">128 dim</span></div>
+  </div>
+</section>
+
+<section class="panel">
+  <div class="panel-head">
+    <div>
+      <h2>Inside a Pairformer block</h2>
+      <span class="sub">the same block is repeated 48 times, with different weights each time</span>
+    </div>
+  </div>
+  <div class="diagram-wrap">
+    <svg viewBox="0 0 900 460" width="900" height="460" role="img" aria-label="Detailed diagram of a Pairformer block">
+      <defs>
+        <marker id="arrowhead2" markerWidth="8" markerHeight="8" refX="7" refY="4" orient="auto">
+          <path d="M0,0 L8,4 L0,8 Z" fill="var(--ink-faint)"></path>
+        </marker>
+      </defs>
+
+      <!-- input s, z -->
+      <text x="90" y="30" class="stage-sub" style="font-size:11px;">s (single, in)</text>
+      <text x="640" y="30" class="stage-sub" style="font-size:11px;">z (pair, in)</text>
+
+      <path d="M120,40 V80" class="flow-arrow" marker-end="url(#arrowhead2)"></path>
+      <path d="M670,40 V80" class="flow-arrow" marker-end="url(#arrowhead2)"></path>
+
+      <!-- z column: triangle mult + triangle attention -->
+      <g class="clickable-group" data-detail="triangle-mult">
+        <rect x="480" y="80" width="380" height="90" rx="8" class="stage-box"></rect>
+        <text x="670" y="105" text-anchor="middle" class="stage-title" style="font-size:12px">Triangle multiplication</text>
+        <text x="670" y="122" text-anchor="middle" class="stage-sub">(outgoing / incoming)</text>
+        <text x="670" y="140" text-anchor="middle" class="stage-sub" style="font-size:9.5px;">updates z from z itself</text>
+        <text x="670" y="156" text-anchor="middle" class="repeat-tag">not attention-based · click for the formula</text>
+      </g>
+
+      <path d="M670,170 V195" class="flow-arrow" marker-end="url(#arrowhead2)"></path>
+
+      <g class="clickable-group" data-detail="triangle-start">
+        <rect x="480" y="195" width="180" height="95" rx="8" class="stage-box analyzed" style="stroke: var(--c-high);"></rect>
+        <text x="570" y="220" text-anchor="middle" class="stage-title" style="font-size:12px">Triangle attention</text>
+        <text x="570" y="236" text-anchor="middle" class="stage-sub">starting node</text>
+        <rect x="495" y="248" width="150" height="24" rx="5" style="fill: color-mix(in srgb, var(--c-high) 20%, transparent); stroke: var(--c-high); stroke-width: 1;"></rect>
+        <text x="570" y="264" text-anchor="middle" class="badge-text" style="fill: color-mix(in srgb, var(--c-high) 65%, var(--ink));">ANALYSED</text>
+      </g>
+
+      <g class="clickable-group" data-detail="triangle-end">
+        <rect x="680" y="195" width="180" height="95" rx="8" class="stage-box analyzed" style="stroke: var(--c-low);"></rect>
+        <text x="770" y="220" text-anchor="middle" class="stage-title" style="font-size:12px">Triangle attention</text>
+        <text x="770" y="236" text-anchor="middle" class="stage-sub">ending node</text>
+        <rect x="695" y="248" width="150" height="24" rx="5" style="fill: color-mix(in srgb, var(--c-low) 20%, transparent); stroke: var(--c-low); stroke-width: 1;"></rect>
+        <text x="770" y="264" text-anchor="middle" class="badge-text" style="fill: color-mix(in srgb, var(--c-low) 55%, var(--ink));">ANALYSED</text>
+      </g>
+
+      <path d="M660,242 H680" class="flow-arrow" marker-end="url(#arrowhead2)"></path>
+
+      <path d="M770,290 V320" class="flow-arrow" marker-end="url(#arrowhead2)"></path>
+      <path d="M570,290 V320 H680" class="flow-arrow" marker-end="url(#arrowhead2)"></path>
+
+      <rect x="580" y="320" width="180" height="55" rx="8" class="stage-box"></rect>
+      <text x="670" y="343" text-anchor="middle" class="stage-title" style="font-size:12px">Transition</text>
+      <text x="670" y="359" text-anchor="middle" class="stage-sub">per-residue MLP</text>
+
+      <text x="670" y="410" text-anchor="middle" class="stage-title" style="font-size:13px">z out &rarr;</text>
+
+      <!-- bias arrow from z to s attention -->
+      <path d="M480,140 C 350,140 320,220 280,220" class="flow-arrow" style="stroke-dasharray:4 3;" marker-end="url(#arrowhead2)"></path>
+      <text x="380" y="185" text-anchor="middle" class="flow-label">z acts as a bias</text>
+
+      <!-- s column: self attention with pair bias -->
+      <g class="clickable-group" data-detail="pairformer-self-attn">
+        <rect x="30" y="195" width="280" height="95" rx="8" class="stage-box analyzed" style="stroke: var(--accent);"></rect>
+        <text x="170" y="220" text-anchor="middle" class="stage-title" style="font-size:12px">Self-attention</text>
+        <text x="170" y="236" text-anchor="middle" class="stage-sub">with a bias from z (16 heads)</text>
+        <rect x="45" y="248" width="250" height="24" rx="5" style="fill: color-mix(in srgb, var(--accent) 16%, transparent); stroke: var(--accent); stroke-width: 1;"></rect>
+        <text x="170" y="264" text-anchor="middle" class="badge-text" style="fill: var(--accent);">ANALYSED · the map closest to ESM-style attention</text>
+      </g>
+
+      <path d="M170,290 V320" class="flow-arrow" marker-end="url(#arrowhead2)"></path>
+
+      <rect x="80" y="320" width="180" height="55" rx="8" class="stage-box"></rect>
+      <text x="170" y="343" text-anchor="middle" class="stage-title" style="font-size:12px">Transition</text>
+      <text x="170" y="359" text-anchor="middle" class="stage-sub">per-residue MLP</text>
+
+      <text x="170" y="410" text-anchor="middle" class="stage-title" style="font-size:13px">s out &rarr;</text>
+    </svg>
+  </div>
+  <p class="diagram-caption">
+    The dashed arrow shows that the pair representation <strong>z</strong> acts as a bias steering the self-attention on <strong>s</strong>: this is how the Pairformer connects "which residues interact" (z) with "how to update each residue" (s). Triangle multiplication is not attention (no softmax over weights), so the tool does not analyse it.
+  </p>
+</section>
+
+<section class="panel">
+  <div class="panel-head">
+    <div>
+      <h2>The 4 maps available in the explorer</h2>
+      <span class="sub">what each one shows and how to read it</span>
+    </div>
+  </div>
+  <div class="family-cards">
+    <div class="family-card clickable-group" data-detail="pairformer-self-attn">
+      <div class="head"><span class="dot" style="background: var(--accent);"></span><h3>Pairformer self-attention</h3></div>
+      <p>For each residue, which other residues it directly "looks at" to update its own representation. Conceptually the closest to a classic protein language model attention map (ESM-style).</p>
+      <span class="dims">48 blocks · 16 heads · N×N matrix</span>
+    </div>
+    <div class="family-card clickable-group" data-detail="triangle-start">
+      <div class="head"><span class="dot" style="background: var(--c-high);"></span><h3>Triangle attention (starting)</h3></div>
+      <p>For each residue pair (i, j), how much a third residue k influences that pair, starting from i. Captures three-body geometric constraints, a hallmark of AlphaFold-style models.</p>
+      <span class="dims">48 blocks · 4 heads · N×N×N cube, averaged over j into an N×N map</span>
+    </div>
+    <div class="family-card clickable-group" data-detail="triangle-end">
+      <div class="head"><span class="dot" style="background: var(--c-low);"></span><h3>Triangle attention (ending)</h3></div>
+      <p>The same mechanism as "starting", but from j instead of i: the two directions complement each other to constrain the geometry of the triangle (i, j, k).</p>
+      <span class="dims">48 blocks · 4 heads · N×N×N cube, averaged over j into an N×N map</span>
+    </div>
+    <div class="family-card clickable-group" data-detail="diffusion-schedule">
+      <div class="head"><span class="dot" style="background: var(--c-vlow);"></span><h3>Diffusion Transformer (token)</h3></div>
+      <p>While the 3D coordinates are generated, which residues influence each other at the token level, captured at a representative noise level in the middle of the denoising rollout.</p>
+      <span class="dims">24 blocks · 16 heads · N×N matrix, one step out of ~200</span>
+    </div>
+  </div>
+</section>
+
+<section class="panel">
+  <div class="panel-head">
+    <div>
+      <h2>Other mechanisms of the model</h2>
+      <span class="sub">not captured by the explorer, but useful to understand the whole</span>
+    </div>
+  </div>
+  <div class="family-cards">
+    <div class="family-card clickable-group" data-detail="msa-averaging">
+      <div class="head"><span class="dot" style="background: var(--ink-faint);"></span><h3>MSA Pair-Weighted Averaging</h3></div>
+      <p>The AlphaFold3 MSA module does not use classic self-attention between homologous sequences: it averages them with weights taken directly from z, without any Query·Key product.</p>
+      <span class="dims">4 blocks · no QK attention</span>
+    </div>
+    <div class="family-card clickable-group" data-detail="adaln">
+      <div class="head"><span class="dot" style="background: var(--ink-faint);"></span><h3>AdaLN · conditioning the diffusion transformer</h3></div>
+      <p>In the diffusion module, the normalisation of each token is modulated by the single representation s, so that denoising takes each residue's context into account.</p>
+      <span class="dims">AlphaFold3 Algorithm 26</span>
+    </div>
+    <div class="family-card clickable-group" data-detail="plddt">
+      <div class="head"><span class="dot" style="background: var(--ink-faint);"></span><h3>How pLDDT is computed</h3></div>
+      <p>The confidence score shown on each structure is not a simple probability: it is an expected value over confidence bins, computed by a dedicated head.</p>
+      <span class="dims">50 bins, [0,1]</span>
+    </div>
+  </div>
+  <div class="cta-row">
+    <a href="{% url 'predictor:index' %}" class="btn">Run a prediction</a>
+  </div>
+</section>
+
+<div class="detail-overlay" id="detail-overlay">
+  <div class="detail-panel">
+    <div class="detail-head">
+      <div>
+        <h2 id="detail-title"></h2>
+        <span class="sub" id="detail-source"></span>
+      </div>
+      <button type="button" class="detail-close" id="detail-close" aria-label="Close">&times;</button>
+    </div>
+    <div class="detail-body" id="detail-body"></div>
+  </div>
+</div>
+{% endblock %}
+
+{% block page_scripts %}
+<script src="{% static 'vendor/katex/katex.min.js' %}"></script>
+<script type="module" src="{% static 'js/pages/architecture.js' %}"></script>
+{% endblock %}

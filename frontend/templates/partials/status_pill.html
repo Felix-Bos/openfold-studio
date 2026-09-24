@@ -1,0 +1,2 @@
+{# Coloured status badge. Usage: {% include "partials/status_pill.html" with item=job id="status-pill" %} #}
+<span class="status-pill {{ item.status }}"{% if id %} id="{{ id }}"{% endif %}>{{ item.get_status_display }}</span>

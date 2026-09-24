@@ -1,0 +1,12 @@
+# Tooling configuration only: the app is run with Django's manage.py,
+# not installed as a package.
+
+[tool.ruff]
+line-length = 100
+target-version = "py311"
+src = ["backend"]
+extend-exclude = ["backend/predictor/migrations", "openfold-3-mlx", "var"]
+
+[tool.ruff.lint]
+select = ["E", "F", "W", "I", "B", "UP", "DJ"]
+ignore = ["E501"]  # long lines are left to the formatter

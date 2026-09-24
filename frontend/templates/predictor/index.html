@@ -1,0 +1,159 @@
+{% extends "base.html" %}
+{% load static studio %}
+
+{% block title %}Predict{% endblock %}
+
+{% block page_styles %}
+<link rel="stylesheet" href="{% static 'css/pages/index.css' %}">
+{% endblock %}
+
+{% block content %}
+<section class="hero">
+  <div class="hero-text">
+    <p class="eyebrow">Protein structure prediction · interpretability</p>
+    <h1>Fold a protein on your Mac, then look inside the model.</h1>
+    <p class="lede">
+      Paste an amino-acid sequence: OpenFold3-MLX predicts its 3D structure locally on Apple Silicon,
+      tells you how confident it is residue by residue, and lets you explore which residues the network links together.
+    </p>
+  </div>
+  <div class="metric-grid hero-metrics">
+    <div class="metric">
+      <span class="metric-label">Predictions</span>
+      <span class="metric-value">{{ stats.total }}</span>
+      <span class="metric-hint">{{ stats.completed }} completed</span>
+    </div>
+    <div class="metric metric--accent">
+      <span class="metric-label">Mean best pLDDT</span>
+      <span class="metric-value">{{ stats.mean_plddt|floatformat:1|default:"—" }}</span>
+      <span class="metric-hint">confidence, 0–100</span>
+    </div>
+    <div class="metric">
+      <span class="metric-label">Attention analyses</span>
+      <span class="metric-value">{{ stats.attention_runs }}</span>
+      <span class="metric-hint">maps extracted</span>
+    </div>
+  </div>
+</section>
+
+<div class="home-grid">
+  <section class="panel">
+    <div class="panel-head">
+      <div class="panel-title">
+        <span class="icon">{% include "partials/icon.html" with name="sparkles" %}</span>
+        <div>
+          <h2>New prediction</h2>
+          <span class="sub">OpenFold3 · 8 diffusion samples · MSA from the ColabFold server</span>
+        </div>
+      </div>
+    </div>
+    <form class="panel-body seq-form" method="post" action="{% url 'predictor:index' %}" novalidate data-sequence-form>
+      {% csrf_token %}
+      <div class="examples">
+        <span class="sub">Try an example</span>
+        {% for example in examples %}
+        <button type="button" class="example" data-example="{{ example.sequence }}">
+          <strong>{{ example.name }}</strong><span>{{ example.organism }}</span>
+        </button>
+        {% endfor %}
+      </div>
+
+      <label class="field-label" for="{{ form.sequence.id_for_label }}">{{ form.sequence.label }}</label>
+      <textarea class="textarea" id="{{ form.sequence.id_for_label }}" name="{{ form.sequence.html_name }}"
+                placeholder="MQIFVKTLTGKTITLEVEPSDTIENVKAKIQDKEGIPPDQQRLIFAGKQLEDGRTLSDYNIQKESTLHLVLRLRGG"
+                spellcheck="false" autocomplete="off"
+                {% if form.sequence.errors %}aria-invalid="true" aria-describedby="sequence-errors"{% endif %}
+                required>{{ form.sequence.value|default_if_none:"" }}</textarea>
+      {% if form.sequence.errors %}
+      <ul class="field-errors" id="sequence-errors">
+        {% for error in form.sequence.errors %}<li>{{ error }}</li>{% endfor %}
+      </ul>
+      {% endif %}
+
+      <div class="sequence-analysis" data-sequence-analysis hidden>
+        <div class="analysis-numbers">
+          <div><span class="sub">Length</span><strong data-stat="length">0</strong></div>
+          <div><span class="sub">Mass</span><strong data-stat="mass">0</strong></div>
+          <div><span class="sub">Net charge (pH 7)</span><strong data-stat="charge">0</strong></div>
+          <div><span class="sub">Invalid letters</span><strong data-stat="invalid">0</strong></div>
+        </div>
+        <div class="composition">
+          <div class="stacked-bar" data-composition-bar></div>
+          <ul class="composition-legend" data-composition-legend></ul>
+        </div>
+      </div>
+
+      <div class="form-footer">
+        <span class="sub">Runs locally · typically a few minutes for ~150 residues</span>
+        <button type="submit" class="btn">{% include "partials/icon.html" with name="play" size=14 %} Predict structure</button>
+      </div>
+    </form>
+  </section>
+
+  <section class="panel how-it-works">
+    <div class="panel-head">
+      <div class="panel-title">
+        <span class="icon">{% include "partials/icon.html" with name="layers" %}</span>
+        <h2>What happens next</h2>
+      </div>
+    </div>
+    <ol class="timeline panel-body">
+      <li><strong>Alignment</strong><span>Homologous sequences (MSA) and structural templates are fetched from the ColabFold server.</span></li>
+      <li><strong>Pairformer</strong><span>48 blocks refine a representation of every residue pair, recycled 4 times.</span></li>
+      <li><strong>Diffusion</strong><span>Atom coordinates are denoised from random noise, 8 times, into 8 candidate structures.</span></li>
+      <li><strong>Explore</strong><span>Inspect confidence per residue, then extract the attention maps to see what the model focused on.</span></li>
+    </ol>
+    <div class="panel-body how-footer">
+      <a href="{% url 'predictor:architecture' %}">How the model works →</a>
+    </div>
+  </section>
+</div>
+
+<section class="panel">
+  <div class="panel-head">
+    <div class="panel-title">
+      <span class="icon">{% include "partials/icon.html" with name="list" %}</span>
+      <div>
+        <h2>Recent predictions</h2>
+        <span class="sub">{{ jobs|length }} job{{ jobs|length|pluralize }}</span>
+      </div>
+    </div>
+  </div>
+  {% if jobs %}
+  <div class="table-scroll">
+    <table class="table jobs-table">
+      <thead>
+        <tr>
+          <th>Sequence</th>
+          <th class="num">Length</th>
+          <th>Status</th>
+          <th class="num">Best pLDDT</th>
+          <th class="num">pTM</th>
+          <th class="num">Runtime</th>
+          <th class="num">Submitted</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for job in jobs %}
+        <tr class="clickable" data-href="{% url 'predictor:job_detail' job.id %}">
+          <td class="seq"><a href="{% url 'predictor:job_detail' job.id %}">{{ job.sequence|truncatechars:34 }}</a></td>
+          <td class="num">{{ job.length }}</td>
+          <td>{% include "partials/status_pill.html" with item=job %}</td>
+          <td class="num">{% include "partials/plddt.html" with value=job.best_plddt %}</td>
+          <td class="num">{{ job.best_sample.ptm|floatformat:2|default:"—" }}</td>
+          <td class="num">{{ job.duration|duration }}</td>
+          <td class="num muted">{{ job.created_at|date:"M j, H:i" }}</td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  {% else %}
+  <div class="empty-state"><strong>No predictions yet</strong>Pick an example above to get started.</div>
+  {% endif %}
+</section>
+{% endblock %}
+
+{% block page_scripts %}
+<script type="module" src="{% static 'js/pages/index.js' %}"></script>
+{% endblock %}

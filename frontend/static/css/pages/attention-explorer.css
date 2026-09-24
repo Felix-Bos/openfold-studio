@@ -1,0 +1,73 @@
+/* Attention explorer: family cards, viewer controls, map, block insights, links table. */
+
+.page-header .lede { display: flex; align-items: center; gap: 0.9rem; flex-wrap: wrap; }
+.meta-item { display: inline-flex; align-items: center; gap: 0.3rem; font-size: var(--text-sm); color: var(--ink-faint); }
+
+.explorer { display: flex; flex-direction: column; gap: var(--space-5); }
+
+/* Layer family cards (act as tabs) */
+.family-cards { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: var(--space-3); }
+@media (max-width: 1000px) { .family-cards { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+.family-card {
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+  text-align: left;
+  padding: 0.9rem 1rem;
+  border-radius: var(--radius);
+  border: 1px solid var(--line);
+  background: var(--bg-panel);
+  box-shadow: var(--shadow-sm);
+  cursor: pointer;
+  transition: border-color 0.15s ease, transform 0.15s ease, box-shadow 0.15s ease;
+}
+.family-card:hover:not(:disabled) { border-color: var(--line-strong); transform: translateY(-1px); }
+.family-card.active {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent) 18%, transparent), var(--shadow);
+}
+.family-card:disabled { opacity: 0.45; cursor: not-allowed; }
+.family-name { font-size: var(--text-sm); font-weight: 650; color: var(--ink); }
+.family-desc { font-size: var(--text-xs); color: var(--ink-faint); line-height: 1.45; }
+.family-stats { margin-top: auto; padding-top: 0.4rem; display: flex; gap: 0.4rem; flex-wrap: wrap; font-size: var(--text-xs); color: var(--ink-faint); }
+
+/* Viewer controls */
+.controls-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 1rem 1.5rem;
+  padding: 0.9rem 1.15rem;
+  border-top: 1px solid var(--line);
+}
+@media (max-width: 700px) { .controls-grid { grid-template-columns: 1fr; } }
+
+/* Map */
+.map-body { display: flex; flex-direction: column; gap: 0.6rem; }
+.chart.square canvas { aspect-ratio: 1 / 1; border-radius: 8px; cursor: crosshair; }
+.cube-canvas { width: 100%; aspect-ratio: 1 / 1; border-radius: 8px; cursor: grab; background: var(--bg-sunken); }
+.cube-canvas.grabbing { cursor: grabbing; }
+.gradient-legend { display: flex; align-items: center; gap: 0.6rem; font-size: var(--text-xs); color: var(--ink-faint); font-family: var(--mono); }
+.gradient-legend i { flex: 1; height: 8px; border-radius: 99px; }
+.heat-ramp { background: linear-gradient(90deg, var(--heat-low), var(--heat-mid), var(--heat-high)); }
+
+/* Block insights */
+.mini-metrics { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 0.6rem; }
+@media (max-width: 600px) { .mini-metrics { grid-template-columns: repeat(2, 1fr); } }
+.mini-metric { background: var(--bg-sunken); border: 1px solid var(--line); border-radius: 10px; padding: 0.65rem 0.75rem; }
+.mini-metric .label { display: block; font-size: var(--text-xs); color: var(--ink-faint); }
+.mini-metric .value { display: block; font-family: var(--mono); font-size: var(--text-lg); font-weight: 650; }
+.mini-metric .hint { display: block; font-size: 0.66rem; color: var(--ink-soft); }
+.subhead { font-size: var(--text-xs); font-weight: 600; color: var(--ink-soft); margin: 1.1rem 0 0.6rem; }
+.separation-bars { display: grid; gap: 0.45rem; }
+.separation-row { display: grid; grid-template-columns: 4.5rem 1fr 3.5rem; align-items: center; gap: 0.6rem; font-size: var(--text-xs); }
+.separation-row .label { font-family: var(--mono); color: var(--ink-soft); }
+.separation-row .track { height: 10px; border-radius: 99px; background: var(--bg-sunken); overflow: hidden; }
+.separation-row .track span { display: block; height: 100%; background: var(--gradient-brand); border-radius: 99px; transition: width 0.3s ease; }
+.separation-row .value { font-family: var(--mono); text-align: right; color: var(--ink); }
+
+/* Links table */
+.contact-callout { margin: 1rem 1.15rem 0.2rem; }
+.links-table tbody tr { cursor: pointer; }
+.links-table tbody tr:hover { background: var(--bg-hover); }
+.links-table .pair { font-family: var(--mono); font-weight: 600; color: var(--ink); }
+.sink-callout { margin-top: 0.9rem; }

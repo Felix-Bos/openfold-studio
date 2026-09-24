@@ -1,0 +1,66 @@
+/* Job page: header meta, results layout, confidence panels, charts, samples, attention form. */
+
+.page-header .lede { display: flex; align-items: center; gap: 0.9rem; flex-wrap: wrap; }
+.meta-item { display: inline-flex; align-items: center; gap: 0.3rem; font-size: var(--text-sm); color: var(--ink-faint); }
+
+.results { display: flex; flex-direction: column; gap: var(--space-5); }
+.results .metric-grid { grid-template-columns: repeat(5, minmax(0, 1fr)); }
+@media (max-width: 900px) { .results .metric-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+
+.viewer-controls { display: flex; gap: 0.5rem; flex-wrap: wrap; }
+
+/* Low-confidence regions */
+.region-list { list-style: none; margin: 0; padding: 0.4rem 0; max-height: 260px; overflow-y: auto; }
+.region-list li button {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  gap: 0.7rem;
+  padding: 0.55rem 1.15rem;
+  border: none;
+  background: none;
+  cursor: pointer;
+  text-align: left;
+  font-size: var(--text-sm);
+  color: var(--ink-soft);
+}
+.region-list li button:hover { background: var(--bg-hover); color: var(--ink); }
+.region-list .range { font-family: var(--mono); font-weight: 650; color: var(--ink); }
+.region-list .region-bar { flex: 1; height: 4px; border-radius: 99px; background: var(--bg-sunken); position: relative; }
+.region-list .region-bar span { position: absolute; top: 0; bottom: 0; border-radius: 99px; background: var(--c-vlow); }
+.region-list .empty { padding: 0.9rem 1.15rem; font-size: var(--text-sm); color: var(--success); display: flex; gap: 0.5rem; align-items: center; }
+
+/* Per-residue confidence */
+.sequence-strip {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 2px;
+  margin-top: 0.9rem;
+  font-family: var(--mono);
+  font-size: 0.68rem;
+}
+.sequence-strip span {
+  width: 1.35em;
+  text-align: center;
+  line-height: 1.6;
+  border-radius: 3px;
+  color: #0b0e14;
+  cursor: pointer;
+  opacity: 0.9;
+}
+.sequence-strip span:hover, .sequence-strip span.active { opacity: 1; outline: 2px solid var(--ink); outline-offset: 0; }
+.sequence-strip span.band-very_high { color: #fff; }
+
+/* PDE heatmap */
+.chart.square { max-width: 460px; margin: 0 auto; }
+.chart.square canvas { aspect-ratio: 1 / 1; border-radius: 8px; }
+.gradient-legend { display: flex; align-items: center; gap: 0.6rem; margin: 0.7rem 0; font-size: var(--text-xs); color: var(--ink-faint); font-family: var(--mono); }
+.gradient-legend i { flex: 1; height: 8px; border-radius: 99px; }
+.pde-ramp { background: linear-gradient(90deg, var(--c-vhigh), var(--c-high), #f4f5f7); }
+
+.samples-table .cell-bar > span:first-child { min-width: 3.2em; }
+
+/* Attention form */
+.attention-form { display: flex; flex-direction: column; gap: 1rem; }
+.family-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(230px, 1fr)); gap: 0.6rem; }
+.form-footer { display: flex; justify-content: space-between; align-items: center; gap: 1rem; flex-wrap: wrap; }

@@ -1,0 +1,137 @@
+/* Design tokens: colours, typography, spacing, radii and shadows, with light/dark themes.
+   Canvas and 3D colours are read from these variables at runtime (js/lib/palette.js). */
+
+:root {
+  /* Surfaces */
+  --bg: #f4f5f7;
+  --bg-elevated: #ffffff;
+  --bg-panel: #ffffff;
+  --bg-sunken: #eef0f3;
+  --bg-hover: #f0f3f8;
+
+  /* Text */
+  --ink: #111827;
+  --ink-soft: #4b5563;
+  --ink-faint: #8a93a3;
+
+  /* Lines */
+  --line: #e3e6eb;
+  --line-strong: #cfd5de;
+
+  /* Brand */
+  --accent: #3b6fd8;
+  --accent-strong: #2c56b0;
+  --accent-soft: #e8effc;
+  --accent-2: #7c5cd6;
+  --gradient-brand: linear-gradient(135deg, #3b6fd8 0%, #7c5cd6 100%);
+
+  /* Feedback */
+  --danger: #c2412d;
+  --danger-soft: #fbeae6;
+  --success: #1f8a5b;
+  --success-soft: #e3f4ec;
+  --warning: #b7791f;
+  --warning-soft: #fcf3e3;
+
+  /* pLDDT confidence bands (AlphaFold DB convention) */
+  --c-vhigh: #0053d6;
+  --c-high: #65cbf3;
+  --c-low: #ffdb13;
+  --c-vlow: #ff7d45;
+
+  /* Attention ramp */
+  --heat-low: #1e2a4a;
+  --heat-mid: #3b6fd8;
+  --heat-high: #ff7d45;
+
+  /* Typography */
+  --sans: "Inter", -apple-system, BlinkMacSystemFont, "Segoe UI", "Helvetica Neue", Arial, sans-serif;
+  --mono: "JetBrains Mono", "SF Mono", ui-monospace, Menlo, Consolas, monospace;
+  --text-xs: 0.72rem;
+  --text-sm: 0.82rem;
+  --text-md: 0.92rem;
+  --text-lg: 1.1rem;
+  --text-xl: 1.5rem;
+  --text-2xl: 2.1rem;
+
+  /* Shape */
+  --radius-sm: 6px;
+  --radius: 12px;
+  --radius-lg: 18px;
+  --shadow-sm: 0 1px 2px rgba(17, 24, 39, 0.05);
+  --shadow: 0 1px 3px rgba(17, 24, 39, 0.06), 0 6px 24px -12px rgba(17, 24, 39, 0.12);
+  --shadow-lg: 0 20px 50px -20px rgba(17, 24, 39, 0.3);
+
+  /* Spacing */
+  --space-1: 0.25rem;
+  --space-2: 0.5rem;
+  --space-3: 0.75rem;
+  --space-4: 1rem;
+  --space-5: 1.5rem;
+  --space-6: 2rem;
+  --space-8: 3rem;
+
+  color-scheme: light;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #0b0e14;
+    --bg-elevated: #121620;
+    --bg-panel: #121620;
+    --bg-sunken: #0e121a;
+    --bg-hover: #182033;
+    --ink: #e8ebf2;
+    --ink-soft: #a6afc0;
+    --ink-faint: #6b7487;
+    --line: #1f2635;
+    --line-strong: #2c3548;
+    --accent: #6f9bff;
+    --accent-strong: #93b4ff;
+    --accent-soft: #17223b;
+    --accent-2: #a78bfa;
+    --gradient-brand: linear-gradient(135deg, #6f9bff 0%, #a78bfa 100%);
+    --danger: #ff8a73;
+    --danger-soft: #2d1714;
+    --success: #4cc792;
+    --success-soft: #10261d;
+    --warning: #f0b95a;
+    --warning-soft: #2a2112;
+    --c-vhigh: #3d8bff;
+    --heat-low: #101624;
+    --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.4);
+    --shadow: 0 1px 2px rgba(0, 0, 0, 0.4), 0 10px 30px -14px rgba(0, 0, 0, 0.6);
+    --shadow-lg: 0 24px 60px -20px rgba(0, 0, 0, 0.8);
+    color-scheme: dark;
+  }
+}
+
+:root[data-theme="dark"] {
+  --bg: #0b0e14;
+  --bg-elevated: #121620;
+  --bg-panel: #121620;
+  --bg-sunken: #0e121a;
+  --bg-hover: #182033;
+  --ink: #e8ebf2;
+  --ink-soft: #a6afc0;
+  --ink-faint: #6b7487;
+  --line: #1f2635;
+  --line-strong: #2c3548;
+  --accent: #6f9bff;
+  --accent-strong: #93b4ff;
+  --accent-soft: #17223b;
+  --accent-2: #a78bfa;
+  --gradient-brand: linear-gradient(135deg, #6f9bff 0%, #a78bfa 100%);
+  --danger: #ff8a73;
+  --danger-soft: #2d1714;
+  --success: #4cc792;
+  --success-soft: #10261d;
+  --warning: #f0b95a;
+  --warning-soft: #2a2112;
+  --c-vhigh: #3d8bff;
+  --heat-low: #101624;
+  --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.4);
+  --shadow: 0 1px 2px rgba(0, 0, 0, 0.4), 0 10px 30px -14px rgba(0, 0, 0, 0.6);
+  --shadow-lg: 0 24px 60px -20px rgba(0, 0, 0, 0.8);
+  color-scheme: dark;
+}

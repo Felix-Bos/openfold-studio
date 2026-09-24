@@ -1,0 +1,195 @@
+{% extends "base.html" %}
+{% load static studio %}
+
+{% block title %}Attention explorer{% endblock %}
+{% block page_class %}page--wide{% endblock %}
+
+{% block page_styles %}
+<link rel="stylesheet" href="{% static 'css/pages/attention-explorer.css' %}">
+{% endblock %}
+
+{% block content %}
+<header class="page-header">
+  <div>
+    <p class="breadcrumb">
+      <a href="{% url 'predictor:index' %}">Predictions</a> /
+      <a href="{% url 'predictor:job_detail' job.id %}">{{ job.id|stringformat:"s"|slice:":8" }} · {{ job.length }} aa</a> /
+      Attention
+    </p>
+    <h1>Attention explorer</h1>
+    <p class="lede">
+      {% include "partials/status_pill.html" with item=run id="status-pill" %}
+      <span class="meta-item">{{ run.layer_families|length }} layer famil{{ run.layer_families|length|pluralize:"y,ies" }}</span>
+      <span class="meta-item">Extracted {{ run.created_at|date:"M j, H:i" }}</span>
+      {% if run.duration %}<span class="meta-item">{% include "partials/icon.html" with name="clock" size=13 %} {{ run.duration|duration }}</span>{% endif %}
+    </p>
+  </div>
+  <div class="page-header-actions">
+    <a class="btn btn--ghost" href="{% url 'predictor:job_detail' job.id %}">{% include "partials/icon.html" with name="arrow-left" size=14 %} Back to prediction</a>
+  </div>
+</header>
+
+{% if run.is_active %}
+<section class="panel" data-attention-pending data-status-url="{% url 'api:attention_status' job.id run.id %}">
+  <div class="panel-head">
+    <div class="panel-title">
+      <span class="icon">{% include "partials/icon.html" with name="brain" %}</span>
+      <div><h2>Extracting attention maps</h2><span class="sub">{{ run.layer_families|join:" · " }}</span></div>
+    </div>
+  </div>
+  <div class="progress-panel">
+    <span class="progress-step">Running one model pass with attention capture…</span>
+    <div class="progress-track"><div class="progress-fill indeterminate"></div></div>
+    <p class="note">The page refreshes automatically when the extraction is done (usually 1–3 minutes).</p>
+  </div>
+</section>
+
+{% elif run.status == "failed" %}
+<section class="panel">
+  <div class="panel-head">
+    <div class="panel-title">
+      <span class="icon">{% include "partials/icon.html" with name="alert" %}</span>
+      <h2>Extraction failed</h2>
+    </div>
+  </div>
+  {% include "partials/error_box.html" with message=run.error_message %}
+</section>
+
+{% elif run.meta and best_cif %}
+<div class="explorer" data-attention-explorer data-families-url="{% url 'api:attention_families' job.id run.id %}">
+
+  <div class="family-cards" role="tablist" aria-label="Layer family">
+    {% for family in layer_families %}
+    <button type="button" class="family-card" role="tab" data-family="{{ family.key }}"
+            {% if family.key not in run.layer_families %}disabled{% endif %}>
+      <span class="family-name">{{ family.label }}</span>
+      <span class="family-desc">{{ family.description }}</span>
+      <span class="family-stats" data-family-stats>{% if family.key not in run.layer_families %}not extracted{% else %}…{% endif %}</span>
+    </button>
+    {% endfor %}
+  </div>
+
+  <div class="main-grid">
+    <section class="panel">
+      <div class="panel-head">
+        <div class="panel-title">
+          <span class="icon">{% include "partials/icon.html" with name="cube" %}</span>
+          <div>
+            <h2 data-ref="viewer-title">Attention of the selected residue</h2>
+            <span class="sub" data-ref="viewer-sub">starting from the most connected residue</span>
+          </div>
+        </div>
+      </div>
+      <div class="structure-viewer" data-ref="viewer"></div>
+      <div class="controls-grid">
+        <div class="control-row">
+          <div class="row-top"><label for="block-slider">Block (layer depth)</label><span class="value" data-ref="block-value">0</span></div>
+          <input type="range" id="block-slider" data-ref="block-slider" min="0" max="0" value="0" step="1">
+        </div>
+        <div class="control-row">
+          <div class="row-top"><label for="link-threshold">Link threshold (relative weight)</label><span class="value" data-ref="link-threshold-value">0.06</span></div>
+          <input type="range" id="link-threshold" data-ref="link-threshold" min="0" max="0.5" value="0.06" step="0.01">
+        </div>
+      </div>
+      <div class="viewer-toolbar">
+        <div class="plddt-legend">
+          <strong>Link weight</strong>
+          <span><i class="band-confident"></i>weak</span>
+          <span><i class="band-low"></i>medium</span>
+          <span><i class="band-very_low"></i>strong</span>
+          <span><i class="band-very_high"></i>selected residue</span>
+        </div>
+        <span class="sub">Hover the structure to identify residues</span>
+      </div>
+    </section>
+
+    <div class="side-col">
+      <section class="panel">
+        <div class="panel-head">
+          <div class="panel-title">
+            <span class="icon">{% include "partials/icon.html" with name="grid" %}</span>
+            <div><h2>Attention map</h2><span class="sub">{{ run.meta.n_residues }} × {{ run.meta.n_residues }} residues · click a row to select it</span></div>
+          </div>
+          <div class="segmented" data-ref="view-toggle" hidden>
+            <button type="button" data-view="heatmap" class="active">Map</button>
+            <button type="button" data-view="cube">3D cube</button>
+          </div>
+        </div>
+        <div class="panel-body map-body">
+          <div class="chart square" data-ref="heatmap"><canvas></canvas></div>
+          <canvas class="cube-canvas" data-ref="cube" width="400" height="400" hidden></canvas>
+          <div class="gradient-legend"><span>weak</span><i class="heat-ramp"></i><span>strong</span></div>
+          <div class="control-row" data-ref="cube-controls" hidden>
+            <div class="row-top"><label for="cube-threshold">Voxel threshold</label><span class="value" data-ref="cube-threshold-value">0.60</span></div>
+            <input type="range" id="cube-threshold" data-ref="cube-threshold" min="0" max="1" value="0.6" step="0.02">
+          </div>
+        </div>
+      </section>
+    </div>
+  </div>
+
+  <div class="two-col">
+    <section class="panel">
+      <div class="panel-head">
+        <div class="panel-title">
+          <span class="icon">{% include "partials/icon.html" with name="chart" %}</span>
+          <div><h2>Where does this block look?</h2><span class="sub" data-ref="insights-sub">share of the total attention weight</span></div>
+        </div>
+      </div>
+      <div class="panel-body">
+        <div class="mini-metrics" data-ref="block-metrics"></div>
+        <div class="callout callout--warning sink-callout" data-ref="sinks" hidden></div>
+        <h3 class="subhead">Attention by sequence separation |i − j|</h3>
+        <div class="separation-bars" data-ref="separation"></div>
+      </div>
+    </section>
+
+    <section class="panel">
+      <div class="panel-head">
+        <div class="panel-title">
+          <span class="icon">{% include "partials/icon.html" with name="link" %}</span>
+          <div><h2>Strongest long-range links</h2><span class="sub">pairs ≥ 24 residues apart · distance measured in the predicted structure</span></div>
+        </div>
+      </div>
+      <div class="callout contact-callout" data-ref="contact-callout"></div>
+      <div class="table-scroll">
+        <table class="table links-table">
+          <thead><tr><th>Residues</th><th class="num">Separation</th><th class="num">Weight</th><th class="num">3D distance</th><th>Contact</th></tr></thead>
+          <tbody data-ref="links"></tbody>
+        </table>
+      </div>
+    </section>
+  </div>
+
+  <section class="panel">
+    <div class="panel-head">
+      <div class="panel-title">
+        <span class="icon">{% include "partials/icon.html" with name="layers" %}</span>
+        <div><h2>Focus across layers</h2><span class="sub">mean attention entropy per block · low = focused on few partners, high = diffuse · click a bar to jump to that block</span></div>
+      </div>
+    </div>
+    <div class="panel-body">
+      <div class="chart" data-ref="entropy-chart"><canvas></canvas></div>
+    </div>
+  </section>
+
+  <p class="note">
+    <strong>Interpretation caveat:</strong> a strong attention weight means the model combines information from two residues in that layer.
+    It is not by itself a physical contact; compare with the 3D distances above and with the confidence scores.
+  </p>
+</div>
+
+{% else %}
+<div class="panel empty-state"><strong>No attention data</strong>This extraction did not produce any map.</div>
+{% endif %}
+{% endblock %}
+
+{% block page_scripts %}
+{% if run.meta and best_cif %}
+{{ best_cif|json_script:"best-structure" }}
+{{ job.sequence|json_script:"job-sequence" }}
+{{ cube_families|json_script:"cube-families" }}
+<script src="{% static 'vendor/3dmol/3Dmol-min.js' %}"></script>
+{% endif %}
+<script type="module" src="{% static 'js/pages/attention-explorer.js' %}"></script>
+{% endblock %}

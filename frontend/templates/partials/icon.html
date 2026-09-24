@@ -1,0 +1,20 @@
+{# Inline SVG icon (Lucide-style strokes). Usage: {% include "partials/icon.html" with name="helix" size=16 %} #}
+<svg class="icon-svg" width="{{ size|default:16 }}" height="{{ size|default:16 }}" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+{% if name == "helix" %}<path d="M7 3c0 5 10 5 10 9s-10 4-10 9M17 3c0 5-10 5-10 9s10 4 10 9"/><path d="M8.5 6.5h7M8.5 17.5h7"/>
+{% elif name == "contrast" %}<circle cx="12" cy="12" r="9"/><path d="M12 3v18a9 9 0 0 0 0-18z" fill="currentColor"/>
+{% elif name == "sparkles" %}<path d="M12 3l1.8 4.7L18.5 9.5l-4.7 1.8L12 16l-1.8-4.7L5.5 9.5l4.7-1.8z"/><path d="M19 15l.8 2.2L22 18l-2.2.8L19 21l-.8-2.2L16 18l2.2-.8z"/>
+{% elif name == "cube" %}<path d="M21 16V8l-9-5-9 5v8l9 5 9-5z"/><path d="M3.3 7.3 12 12l8.7-4.7M12 22V12"/>
+{% elif name == "chart" %}<path d="M3 3v18h18"/><path d="M7 15l4-4 3 3 5-6"/>
+{% elif name == "grid" %}<rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/>
+{% elif name == "list" %}<path d="M8 6h13M8 12h13M8 18h13M3 6h.01M3 12h.01M3 18h.01"/>
+{% elif name == "link" %}<path d="M10 13a5 5 0 0 0 7.5.5l3-3a5 5 0 0 0-7-7l-1.7 1.7"/><path d="M14 11a5 5 0 0 0-7.5-.5l-3 3a5 5 0 0 0 7 7l1.7-1.7"/>
+{% elif name == "brain" %}<path d="M9.5 2A2.5 2.5 0 0 0 7 4.5v.3A3 3 0 0 0 4 8a3 3 0 0 0 .8 2A3 3 0 0 0 4 12a3 3 0 0 0 3 3v.5A2.5 2.5 0 0 0 9.5 18H12V2z"/><path d="M14.5 2A2.5 2.5 0 0 1 17 4.5v.3A3 3 0 0 1 20 8a3 3 0 0 1-.8 2 3 3 0 0 1 .8 2 3 3 0 0 1-3 3v.5a2.5 2.5 0 0 1-2.5 2.5H12V2z"/>
+{% elif name == "clock" %}<circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/>
+{% elif name == "alert" %}<path d="M12 3 2 21h20z"/><path d="M12 10v4M12 17.5h.01"/>
+{% elif name == "check" %}<circle cx="12" cy="12" r="9"/><path d="m8 12 3 3 5-6"/>
+{% elif name == "play" %}<path d="m6 4 14 8-14 8z"/>
+{% elif name == "arrow-left" %}<path d="M19 12H5M12 19l-7-7 7-7"/>
+{% elif name == "flask" %}<path d="M9 3h6M10 3v6L4.5 19a1.5 1.5 0 0 0 1.3 2h12.4a1.5 1.5 0 0 0 1.3-2L14 9V3"/><path d="M7 15h10"/>
+{% elif name == "layers" %}<path d="m12 3 9 5-9 5-9-5z"/><path d="m3 13 9 5 9-5"/>
+{% endif %}
+</svg>

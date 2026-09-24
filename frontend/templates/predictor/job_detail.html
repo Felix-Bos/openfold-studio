@@ -1,0 +1,264 @@
+{% extends "base.html" %}
+{% load static studio %}
+
+{% block title %}Prediction · {{ job.length }} aa{% endblock %}
+{% block page_class %}page--wide{% endblock %}
+
+{% block page_styles %}
+<link rel="stylesheet" href="{% static 'css/pages/job-detail.css' %}">
+{% endblock %}
+
+{% block content %}
+<header class="page-header">
+  <div>
+    <p class="breadcrumb"><a href="{% url 'predictor:index' %}">Predictions</a> / {{ job.id|stringformat:"s"|slice:":8" }}</p>
+    <h1>Protein structure · {{ job.length }} residues</h1>
+    <p class="lede">
+      {% include "partials/status_pill.html" with item=job id="status-pill" %}
+      <span class="meta-item">Submitted {{ job.created_at|date:"M j, Y · H:i" }}</span>
+      {% if job.duration %}<span class="meta-item">{% include "partials/icon.html" with name="clock" size=13 %} {{ job.duration|duration }}</span>{% endif %}
+    </p>
+  </div>
+  {% if job.is_completed and job.best_sample %}
+  <div class="page-header-actions">
+    <a class="btn btn--ghost" href="{% url 'api:sample_structure' job.id job.best_sample.sample %}" download="structure_{{ job.id|stringformat:'s'|slice:':8' }}.cif">Download .cif</a>
+    <a class="btn" href="#attention">{% include "partials/icon.html" with name="brain" size=15 %} Analyse attention</a>
+  </div>
+  {% endif %}
+</header>
+
+<p class="sequence">{{ job.sequence }}</p>
+
+{% if job.is_active or job.status == "failed" %}
+<section class="panel">
+  <div class="panel-head">
+    <div class="panel-title">
+      <span class="icon">{% include "partials/icon.html" with name="clock" %}</span>
+      <div><h2>Progress</h2><span class="sub">updates automatically</span></div>
+    </div>
+  </div>
+  <div class="progress-panel"
+       {% if job.is_active %}data-job-progress data-status-url="{% url 'api:job_status' job.id %}"{% endif %}>
+    <ol class="steps" data-progress-steps>
+      <li data-step="running_msa">Alignment (MSA)</li>
+      <li data-step="running_inference">Model inference</li>
+      <li data-step="completed">Results</li>
+    </ol>
+    <div class="progress-top">
+      <span class="progress-step" data-progress-step>{{ job.current_step|default:"Waiting to start…" }}</span>
+      <span class="progress-eta" data-progress-eta></span>
+    </div>
+    <div class="progress-track"><div class="progress-fill" data-progress-fill></div></div>
+  </div>
+  {% if job.status == "failed" %}
+  {% include "partials/error_box.html" with message=job.error_message %}
+  {% endif %}
+</section>
+{% endif %}
+
+{% if job.is_completed and job.best_sample %}
+{% with best=job.best_sample %}
+<div class="results" data-job-results data-sequence="{{ job.sequence }}">
+
+  <div class="callout" data-verdict>
+    <span class="callout-icon">{% include "partials/icon.html" with name="sparkles" size=18 %}</span>
+    <div><strong>Reading this prediction.</strong> <span data-field="verdict">Loading confidence analysis…</span></div>
+  </div>
+
+  <div class="metric-grid">
+    <div class="metric metric--accent">
+      <span class="metric-label">Mean pLDDT <span class="help" title="Per-residue confidence (0–100), averaged over the protein.">?</span></span>
+      <span class="metric-value" data-field="plddt">{{ best.avg_plddt|floatformat:1 }}</span>
+      <span class="metric-hint" data-field="plddt-hint">local confidence</span>
+    </div>
+    <div class="metric">
+      <span class="metric-label">pTM <span class="help" title="Predicted TM-score (0–1): quality of the global fold. Above 0.5 the fold is likely correct.">?</span></span>
+      <span class="metric-value" data-field="ptm">{{ best.ptm|floatformat:3 }}</span>
+      <span class="metric-hint">global fold</span>
+    </div>
+    <div class="metric">
+      <span class="metric-label">gPDE <span class="help" title="Global predicted distance error, in ångströms. Lower is better.">?</span></span>
+      <span class="metric-value" data-field="gpde">{{ best.gpde|floatformat:2 }}<small> Å</small></span>
+      <span class="metric-hint">distance error</span>
+    </div>
+    <div class="metric">
+      <span class="metric-label">Disorder <span class="help" title="Predicted fraction of intrinsically disordered residues.">?</span></span>
+      <span class="metric-value" data-field="disorder">—</span>
+      <span class="metric-hint">of residues</span>
+    </div>
+    <div class="metric">
+      <span class="metric-label">Clashes <span class="help" title="Whether atoms of the predicted structure overlap physically.">?</span></span>
+      <span class="metric-value" data-field="clash">—</span>
+      <span class="metric-hint">steric overlaps</span>
+    </div>
+  </div>
+
+  <div class="main-grid">
+    <section class="panel">
+      <div class="panel-head">
+        <div class="panel-title">
+          <span class="icon">{% include "partials/icon.html" with name="cube" %}</span>
+          <div>
+            <h2 data-field="title">Sample {{ best.sample }} · rank 01</h2>
+            <span class="sub" data-field="subtitle">best ranked of {{ job.result_summary|length }} diffusion samples</span>
+          </div>
+        </div>
+        <div class="viewer-controls">
+          <div class="segmented" role="group" aria-label="Representation">
+            <button type="button" data-style="cartoon" class="active">Cartoon</button>
+            <button type="button" data-style="stick">Sticks</button>
+            <button type="button" data-style="sphere">Spheres</button>
+          </div>
+          <div class="segmented"><button type="button" data-spin-toggle>Spin</button></div>
+        </div>
+      </div>
+      <div class="structure-viewer" data-viewer></div>
+      <div class="viewer-toolbar">
+        <div class="plddt-legend">
+          <strong>pLDDT</strong>
+          <span><i class="band-very_high"></i>&gt; 90</span>
+          <span><i class="band-confident"></i>70–90</span>
+          <span><i class="band-low"></i>50–70</span>
+          <span><i class="band-very_low"></i>&lt; 50</span>
+        </div>
+        <span class="sub" data-field="selection">Click the confidence chart or a region to locate residues.</span>
+      </div>
+    </section>
+
+    <div class="side-col">
+      <section class="panel">
+        <div class="panel-head">
+          <div class="panel-title">
+            <span class="icon">{% include "partials/icon.html" with name="chart" %}</span>
+            <div><h2>Confidence breakdown</h2><span class="sub">share of residues per pLDDT band</span></div>
+          </div>
+        </div>
+        <div class="panel-body">
+          <div class="stacked-bar" data-bands-bar></div>
+          <ul class="legend-list" data-bands-legend></ul>
+        </div>
+      </section>
+
+      <section class="panel">
+        <div class="panel-head">
+          <div class="panel-title">
+            <span class="icon">{% include "partials/icon.html" with name="alert" %}</span>
+            <div><h2>Low-confidence regions</h2><span class="sub">≥ 3 consecutive residues with pLDDT &lt; 70</span></div>
+          </div>
+        </div>
+        <ul class="region-list" data-regions></ul>
+      </section>
+    </div>
+  </div>
+
+  <section class="panel">
+    <div class="panel-head">
+      <div class="panel-title">
+        <span class="icon">{% include "partials/icon.html" with name="chart" %}</span>
+        <div><h2>Per-residue confidence</h2><span class="sub">pLDDT of each residue's alpha carbon · hover to inspect, click to locate in 3D</span></div>
+      </div>
+    </div>
+    <div class="panel-body">
+      <div class="chart" data-plddt-chart><canvas></canvas></div>
+      <div class="sequence-strip" data-sequence-strip></div>
+    </div>
+  </section>
+
+  <div class="two-col">
+    <section class="panel">
+      <div class="panel-head">
+        <div class="panel-title">
+          <span class="icon">{% include "partials/icon.html" with name="grid" %}</span>
+          <div><h2>Predicted distance error</h2><span class="sub">expected error (Å) on the distance between residues i and j</span></div>
+        </div>
+      </div>
+      <div class="panel-body">
+        <div class="chart square" data-pde-chart><canvas></canvas></div>
+        <div class="gradient-legend"><span>0 Å · confident</span><i class="pde-ramp"></i><span data-field="pde-max">uncertain</span></div>
+        <p class="note"><strong>How to read it:</strong> dark square blocks along the diagonal are rigid domains; a light off-diagonal area means the model is unsure how two parts are positioned relative to each other.</p>
+      </div>
+    </section>
+
+    <section class="panel">
+      <div class="panel-head">
+        <div class="panel-title">
+          <span class="icon">{% include "partials/icon.html" with name="list" %}</span>
+          <div><h2>Diffusion samples</h2><span class="sub">{{ job.result_summary|length }} candidate structures, click to display</span></div>
+        </div>
+      </div>
+      <div class="table-scroll">
+        <table class="table samples-table">
+          <thead>
+            <tr><th>#</th><th>Sample</th><th class="num">pLDDT</th><th class="num">pTM</th><th class="num">gPDE</th><th class="num">Ranking score</th></tr>
+          </thead>
+          <tbody>
+            {% for s in job.result_summary %}
+            <tr class="clickable{% if forloop.first %} selected{% endif %}" data-sample-row
+                data-structure-url="{% url 'api:sample_structure' job.id s.sample %}"
+                data-confidence-url="{% url 'api:sample_confidence' job.id s.sample %}"
+                data-sample="{{ s.sample }}" data-rank="{{ forloop.counter|stringformat:'02d' }}"
+                tabindex="0" role="button">
+              <td class="muted mono">{{ forloop.counter|stringformat:"02d" }}</td>
+              <td><strong>Sample {{ s.sample }}</strong></td>
+              <td class="num">{% include "partials/plddt.html" with value=s.avg_plddt %}</td>
+              <td class="num">{{ s.ptm|floatformat:3 }}</td>
+              <td class="num">{{ s.gpde|floatformat:2 }}</td>
+              <td class="num"><div class="cell-bar"><span>{{ s.sample_ranking_score|floatformat:3 }}</span><span class="bar"><span data-score="{{ s.sample_ranking_score|stringformat:'f' }}"></span></span></div></td>
+            </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+      <p class="note panel-body">The 8 samples come from 8 independent diffusion runs. Similar scores across samples mean the prediction is stable.</p>
+    </section>
+  </div>
+</div>
+{% endwith %}
+
+<section class="panel" id="attention">
+  <div class="panel-head">
+    <div class="panel-title">
+      <span class="icon">{% include "partials/icon.html" with name="brain" %}</span>
+      <div><h2>Look inside the model</h2><span class="sub">extract the attention maps of this prediction (one extra model pass, ~1–3 min)</span></div>
+    </div>
+  </div>
+  <form class="panel-body attention-form" method="post" action="{% url 'predictor:attention_create' job.id %}">
+    {% csrf_token %}
+    <div class="family-grid">
+      {% for family in layer_families %}
+      <label class="check">
+        <input type="checkbox" name="families" value="{{ family.key }}" checked>
+        <div><strong>{{ family.label }}</strong><span>{{ family.description }}</span></div>
+      </label>
+      {% endfor %}
+    </div>
+    <div class="form-footer">
+      <span class="sub">Only one computation runs at a time.</span>
+      <button type="submit" class="btn">{% include "partials/icon.html" with name="play" size=14 %} Extract attention</button>
+    </div>
+  </form>
+  {% if attention_runs %}
+  <div class="table-scroll">
+    <table class="table">
+      <thead><tr><th>Previous analyses</th><th>Layer families</th><th>Status</th><th class="num">Runtime</th></tr></thead>
+      <tbody>
+        {% for run in attention_runs %}
+        <tr class="clickable" data-href="{% url 'predictor:attention_explorer' job.id run.id %}">
+          <td><a href="{% url 'predictor:attention_explorer' job.id run.id %}">{{ run.created_at|date:"M j, H:i" }}</a></td>
+          <td class="muted">{{ run.layer_families|length }} of 4</td>
+          <td>{% include "partials/status_pill.html" with item=run %}</td>
+          <td class="num">{{ run.duration|duration }}</td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  {% endif %}
+</section>
+{% endif %}
+{% endblock %}
+
+{% block page_scripts %}
+<script src="{% static 'vendor/3dmol/3Dmol-min.js' %}"></script>
+<script type="module" src="{% static 'js/pages/job-detail.js' %}"></script>
+{% endblock %}

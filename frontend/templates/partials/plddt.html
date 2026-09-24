@@ -1,0 +1,2 @@
+{# pLDDT value with a swatch coloured by confidence band. Usage: {% include "partials/plddt.html" with value=job.best_plddt %} #}
+{% if value is not None %}<span class="plddt" data-band="{% if value >= 90 %}very_high{% elif value >= 70 %}confident{% elif value >= 50 %}low{% else %}very_low{% endif %}">{{ value|floatformat:1 }}</span>{% else %}<span class="muted">—</span>{% endif %}

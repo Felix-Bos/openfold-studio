@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
-# Installe OpenFold3-MLX (depot externe) a une version figee et applique
-# les correctifs de ce projet. A lancer depuis la racine du depot.
+# Installs OpenFold3-MLX (an external repository) at a pinned version and
+# applies this project's patches. Run from the repository root.
 set -euo pipefail
 
 REPO_URL="https://github.com/latent-spacecraft/openfold-3-mlx.git"
@@ -9,7 +9,7 @@ ROOT_DIR="$(cd "$(dirname "$0")/.." && pwd)"
 TARGET_DIR="${OPENFOLD_PROJECT_DIR:-$ROOT_DIR/openfold-3-mlx}"
 
 if [ ! -d "$TARGET_DIR/.git" ]; then
-    echo "Clonage de OpenFold3-MLX dans $TARGET_DIR"
+    echo "Cloning OpenFold3-MLX into $TARGET_DIR"
     git clone "$REPO_URL" "$TARGET_DIR"
 fi
 
@@ -19,14 +19,14 @@ git checkout --quiet "$PINNED_COMMIT"
 for patch in "$ROOT_DIR"/patches/*.patch; do
     if git apply --check "$patch" 2>/dev/null; then
         git apply "$patch"
-        echo "Correctif applique : $(basename "$patch")"
+        echo "Applied patch: $(basename "$patch")"
     else
-        echo "Correctif deja applique ou incompatible : $(basename "$patch")"
+        echo "Patch already applied or not applicable: $(basename "$patch")"
     fi
 done
 
-echo "Installation de l'environnement OpenFold3-MLX (.venv)"
+echo "Installing the OpenFold3-MLX environment (.venv)"
 chmod +x ./install.sh
 ./install.sh
 
-echo "OpenFold3-MLX pret dans $TARGET_DIR"
+echo "OpenFold3-MLX is ready in $TARGET_DIR"

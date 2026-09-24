@@ -1,0 +1,58 @@
+{% load static %}<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>{% block title %}OpenFold Studio{% endblock %} · OpenFold Studio</title>
+<link rel="icon" href="{% static 'img/favicon.svg' %}" type="image/svg+xml">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;600&display=swap">
+<link rel="stylesheet" href="{% static 'css/tokens.css' %}">
+<link rel="stylesheet" href="{% static 'css/base.css' %}">
+<link rel="stylesheet" href="{% static 'css/components.css' %}">
+{% block page_styles %}{% endblock %}
+<script>
+  // Apply the saved theme before first paint to avoid a flash.
+  try {
+    const theme = localStorage.getItem("theme");
+    if (theme) document.documentElement.dataset.theme = theme;
+  } catch (error) { /* storage unavailable: follow the system theme */ }
+</script>
+</head>
+<body>
+<header class="topbar">
+  <div class="topbar-inner">
+    <a href="{% url 'predictor:index' %}" class="brand">
+      <span class="brand-mark">{% include "partials/icon.html" with name="helix" size=18 %}</span>
+      <span class="brand-name">OpenFold <span>Studio</span></span>
+    </a>
+    {% block nav %}
+    <nav class="nav" aria-label="Main">
+      <a href="{% url 'predictor:index' %}"{% if request.resolver_match.url_name == "index" %} aria-current="page"{% endif %}>Predict</a>
+      <a href="{% url 'predictor:architecture' %}"{% if request.resolver_match.url_name == "architecture" %} aria-current="page"{% endif %}>How the model works</a>
+    </nav>
+    {% endblock %}
+    <div class="topbar-end">
+      <span class="runtime-chip">OpenFold3-MLX · local</span>
+      <button type="button" class="icon-button" data-theme-toggle aria-label="Toggle light/dark theme">
+        {% include "partials/icon.html" with name="contrast" size=16 %}
+      </button>
+    </div>
+  </div>
+</header>
+
+<main class="page {% block page_class %}{% endblock %}">
+  {% include "partials/messages.html" %}
+  {% block content %}{% endblock %}
+</main>
+
+<footer class="foot">
+  <span>OpenFold Studio · structure prediction and attention interpretability, running locally on Apple Silicon</span>
+  <span>MSA: ColabFold server · Model: OpenFold3-MLX</span>
+</footer>
+
+<script type="module" src="{% static 'js/lib/theme.js' %}"></script>
+{% block page_scripts %}{% endblock %}
+</body>
+</html>
